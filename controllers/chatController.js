@@ -1,6 +1,7 @@
 import { queryOllama } from "../config/ollama.js";
 import { saveConversation } from "../models/conversation.js";
 import { greetingPrompt, conversationPrompt, evaluationPrompt } from "../utils/prompt.js";
+import { getPromptByType } from "../models/prompt.js";
 
 export const startChat = async (req, res) => {
   try {
@@ -9,7 +10,17 @@ export const startChat = async (req, res) => {
       return res.status(400).json({ error: "Name is required" });
     }
     
-    const prompt = greetingPrompt(name);
+    // Check if there's an active custom greeting prompt
+    const customPrompt = await getPromptByType('greeting');
+    let prompt;
+    
+    if (customPrompt) {
+      // Replace ${name} placeholder with actual name
+      prompt = customPrompt.content.replace(/\$\{name\}/g, name);
+    } else {
+      prompt = greetingPrompt(name);
+    }
+    
     const aiResponse = await queryOllama(prompt);
     await saveConversation("System: Start Chat", aiResponse);
     res.json({ aiResponse });
@@ -28,7 +39,23 @@ export const respondChat = async (req, res) => {
       return res.status(400).json({ error: "User message is required." });
     }
     
-    const prompt = conversationPrompt(conversationHistory, userMessage);
+    // Check if there's an active custom conversation prompt
+    const customPrompt = await getPromptByType('conversation');
+    let prompt;
+    
+    if (customPrompt) {
+      // Replace placeholders with actual values
+      const conversationHistoryText = conversationHistory.map(m => 
+        `${m.role === "ai" ? "Internal Client" : "PM"}: ${m.content}`
+      ).join("\n");
+      
+      prompt = customPrompt.content
+        .replace(/\$\{conversationHistory\}/g, conversationHistoryText)
+        .replace(/\$\{userInput\}/g, userMessage);
+    } else {
+      prompt = conversationPrompt(conversationHistory, userMessage);
+    }
+    
     const aiResponse = await queryOllama(prompt);
     await saveConversation(userMessage, aiResponse);
 
@@ -118,8 +145,23 @@ export const evaluateConversation = async (req, res) => {
 
     while (retryCount < maxRetries) {
       try {
+        // Check if there's an active custom evaluation prompt
+        const customPrompt = await getPromptByType('evaluation');
+        let prompt;
+        
+        if (customPrompt) {
+          // Replace placeholders with actual values
+          const conversationHistoryText = conversationHistory.map(m => 
+            `${m.role === "ai" ? "Internal Client" : "PM"}: ${m.content}`
+          ).join("\n");
+          
+          prompt = customPrompt.content.replace(/\$\{conversationHistory\}/g, conversationHistoryText);
+        } else {
+          prompt = evaluationPrompt(conversationHistory);
+        }
+        
         // Get evaluation from Ollama
-        const evaluationResponse = await queryOllama(evaluationPrompt(conversationHistory));
+        const evaluationResponse = await queryOllama(prompt);
         
         // Parse and validate the response
         evaluation = parseEvaluationResponse(evaluationResponse);

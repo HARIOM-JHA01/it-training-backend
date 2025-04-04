@@ -2,6 +2,7 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import chatRoutes from "./routes/chatRoutes.js";
+import promptRoutes from "./routes/promptRoutes.js";
 
 dotenv.config();
 
@@ -36,6 +37,7 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use("/api/chat", chatRoutes);
+app.use("/api/prompts", promptRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server running on port ${PORT}`));
