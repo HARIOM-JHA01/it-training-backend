@@ -10,20 +10,35 @@ export const startChat = async (req, res) => {
       return res.status(400).json({ error: "Name is required" });
     }
     
+    // Get client name from request or use default
+    const { clientName = "Client" } = req.body;
+    
+    const personalities = [
+      "detail-oriented and analytical",
+      "results-focused and direct",
+      "collaborative and friendly",
+      "cautious and thorough",
+      "innovative and forward-thinking"
+    ];
+    const clientPersonality = personalities[Math.floor(Math.random() * personalities.length)];
+    
     // Check if there's an active custom greeting prompt
     const customPrompt = await getPromptByType('greeting');
     let prompt;
     
     if (customPrompt) {
-      // Replace ${name} placeholder with actual name
-      prompt = customPrompt.content.replace(/\$\{name\}/g, name);
+      // Replace placeholders with actual values
+      prompt = customPrompt.content
+        .replace(/\$\{name\}/g, name)
+        .replace(/\$\{clientName\}/g, clientName)
+        .replace(/\$\{clientPersonality\}/g, clientPersonality);
     } else {
-      prompt = greetingPrompt(name);
+      prompt = greetingPrompt(name, clientName, clientPersonality);
     }
     
     const aiResponse = await queryOllama(prompt);
     await saveConversation("System: Start Chat", aiResponse);
-    res.json({ aiResponse });
+    res.json({ aiResponse, prompt, promptInfo: { clientName, clientPersonality } });
   } catch (error) {
     console.error("Start Chat Error:", error);
     res.status(500).json({ error: "Server error" });
@@ -39,6 +54,21 @@ export const respondChat = async (req, res) => {
       return res.status(400).json({ error: "User message is required." });
     }
     
+    // Extract client name from conversation history or use a default
+    let clientName = "Client";
+    if (conversationHistory && conversationHistory.length > 0) {
+      // Try to find the client name from the first message
+      const firstMessage = conversationHistory[0];
+      if (firstMessage && firstMessage.role === "ai") {
+        const greeting = firstMessage.content;
+        // Extract name from greeting patterns like "Hi [name]" or "Hello [name]"
+        const nameMatch = greeting.match(/(?:Hi|Hello|Hey)\s+([A-Za-z]+)/);
+        if (nameMatch && nameMatch[1]) {
+          clientName = nameMatch[1];
+        }
+      }
+    }
+    
     // Check if there's an active custom conversation prompt
     const customPrompt = await getPromptByType('conversation');
     let prompt;
@@ -46,20 +76,21 @@ export const respondChat = async (req, res) => {
     if (customPrompt) {
       // Replace placeholders with actual values
       const conversationHistoryText = conversationHistory.map(m => 
-        `${m.role === "ai" ? "Internal Client" : "PM"}: ${m.content}`
+        `${m.role === "ai" ? `${clientName}` : "PM"}: ${m.content}`
       ).join("\n");
       
       prompt = customPrompt.content
         .replace(/\$\{conversationHistory\}/g, conversationHistoryText)
-        .replace(/\$\{userInput\}/g, userMessage);
+        .replace(/\$\{userInput\}/g, userMessage)
+        .replace(/\$\{clientName\}/g, clientName);
     } else {
-      prompt = conversationPrompt(conversationHistory, userMessage);
+      prompt = conversationPrompt(conversationHistory, userMessage, clientName);
     }
     
     const aiResponse = await queryOllama(prompt);
     await saveConversation(userMessage, aiResponse);
 
-    res.json({ aiResponse });
+    res.json({ aiResponse, prompt, promptInfo: { clientName } });
   } catch (error) {
     console.error("Respond Chat Error:", error);
     if (error instanceof SyntaxError) {
@@ -95,7 +126,7 @@ const parseEvaluationResponse = (response) => {
 
 const validateEvaluation = (evaluation) => {
   const requiredFields = ['evaluation', 'overallFeedback'];
-  const requiredEvaluationFields = ['clarity', 'professionalism', 'problemSolving', 'communication'];
+  const requiredEvaluationFields = ['clarify', 'legitimize', 'addPerspective', 'visualizeOptions', 'establishAgreements'];
   const requiredFeedbackFields = ['strengths', 'areasForImprovement'];
 
   // Check top-level structure
@@ -115,8 +146,12 @@ const validateEvaluation = (evaluation) => {
     }
     if (typeof evaluation.evaluation[field].score !== 'number' || 
         evaluation.evaluation[field].score < 0 || 
-        evaluation.evaluation[field].score > 5) {
-      throw new Error(`Invalid score for ${field}: must be a number between 0 and 5`);
+        evaluation.evaluation[field].score > 10) {
+      throw new Error(`Invalid score for ${field}: must be a number between 0 and 10`);
+    }
+    if (!Array.isArray(evaluation.evaluation[field].feedback) || 
+        evaluation.evaluation[field].feedback.length === 0) {
+      throw new Error(`Invalid feedback for ${field}: must be a non-empty array`);
     }
   }
 
@@ -179,10 +214,31 @@ export const evaluateConversation = async (req, res) => {
       }
     }
 
-    // Calculate percentages
-    Object.keys(evaluation.evaluation).forEach(key => {
-      evaluation.evaluation[key].percentage = (evaluation.evaluation[key].score / 5) * 100;
-    });
+    // Normalize and adjust scores to make them more realistic and logical
+    // First, collect all scores
+    const scores = Object.keys(evaluation.evaluation).map(key => evaluation.evaluation[key].score);
+    const avgScore = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+    
+    // If average score is too high (> 8), apply a scaling factor to bring scores down
+    if (avgScore > 8) {
+      const scalingFactor = 8 / avgScore; // This will scale the average down to 8
+      
+      Object.keys(evaluation.evaluation).forEach(key => {
+        // Apply scaling and ensure scores remain between 0-10
+        let adjustedScore = Math.round(evaluation.evaluation[key].score * scalingFactor * 10) / 10;
+        // Ensure we don't have perfect 10s unless truly exceptional
+        if (adjustedScore > 9.5) adjustedScore = 9.5;
+        // Update the score
+        evaluation.evaluation[key].score = adjustedScore;
+        // Calculate percentage for the circle visualization
+        evaluation.evaluation[key].percentage = (adjustedScore / 10) * 100;
+      });
+    } else {
+      // If scores are already reasonable, just calculate percentages
+      Object.keys(evaluation.evaluation).forEach(key => {
+        evaluation.evaluation[key].percentage = (evaluation.evaluation[key].score / 10) * 100;
+      });
+    }
 
     res.json(evaluation);
 
