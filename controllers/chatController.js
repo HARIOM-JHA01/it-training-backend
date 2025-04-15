@@ -367,7 +367,7 @@ export const evaluateConversation = async (req, res) => {
 
     let evaluation;
     let retryCount = 0;
-    const maxRetries = 4; // Increased from 3 to 4 retries
+    const maxRetries = 1; // Increased from 3 to 4 retries
     let partialEvaluation = null; // Store any partial evaluation data we might get
 
     // Enhanced prompt with stronger formatting instructions

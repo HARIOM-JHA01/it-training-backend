@@ -64,9 +64,6 @@ For this interaction ONLY:
 6. IMPORTANT: Respond DIRECTLY in character without any meta-commentary like "Here's my attempt" or similar phrases
 
 TONE: Professional with a slight sense of urgency
-
-BAD EXAMPLE: "Here's what I'd say: We need several changes to various systems immediately."
-GOOD EXAMPLE: "I was just about to send out a report, but I noticed we're missing a crucial integration with our sales team's CRM system. Their new feature for tracking customer interactions would be really useful for us. Could you see if that can be added to the project scope? It would save us a lot of manual data entry and give us more accurate insights."
 `
     },
     {
