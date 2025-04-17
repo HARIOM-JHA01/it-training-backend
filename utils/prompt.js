@@ -15,20 +15,12 @@ For this first interaction ONLY:
 
 TONE: Neutral, professional, realistic
 
-BAD EXAMPLE: "Here's my attempt: Hello, I need help with a project issue immediately."
-BAD EXAMPLE: "Hi ${name}, I'm Joe! Great to meet you! How's your day going so far?"
-GOOD EXAMPLE: "Hi ${name}, I'm Joe. I wanted to connect regarding a project. How are you today?"
-
 Remember: You are ${clientName} talking to ${name} directly. Stay in character and respond naturally.
 `;
 
 export const conversationPrompt = (conversationHistory, userInput, clientName = 'Client', interactionStep = 2) => {
-  // Get the PM's name from conversation context or use default
   let pmName = "Project Manager";
-  
-  // Try to extract PM name from conversation
   if (conversationHistory && conversationHistory.length > 0) {
-    // Look for client greetings that might include the PM's name
     const firstAIMessage = conversationHistory.find(m => m.role === "ai");
     if (firstAIMessage) {
       const nameMatches = firstAIMessage.content.match(/Hi ([A-Z][a-z]+)|Hello ([A-Z][a-z]+)|Hey ([A-Z][a-z]+)/i);
@@ -37,149 +29,58 @@ export const conversationPrompt = (conversationHistory, userInput, clientName = 
       }
     }
   }
-  
-  // Define detailed instructions for each interaction step
+
+  // Updated: Stronger focus on context, professionalism, and handling off-topic or incoherent PM responses
   const interactionGuides = [
-    // Step 1 is handled by greetingPrompt
     {
       step: 1,
-      instructions: `
-CURRENT INTERACTION: 1 of 6 - Introduction
-- Introduce yourself with a name
-- Be polite and establish rapport
-- Ask how ${pmName} is doing
-- DO NOT mention any project issues yet
-`
+      instructions: `CURRENT INTERACTION: 1 of 6 - Introduction\n- Introduce yourself with a name\n- Be polite and establish rapport\n- Ask how ${pmName} is doing\n- DO NOT mention any project issues yet\nTONE: Professional, friendly, realistic`
     },
     {
       step: 2,
-      instructions: `
-CURRENT INTERACTION: 2 of 6 - Present a Project Change Request
-
-For this interaction ONLY:
-1. Briefly mention a SPECIFIC software project that already exists (be specific about what it does)
-2. Clearly describe ONE change or feature you need added to this project
-3. Provide 1-2 business reasons why this change is important
-4. Be specific but keep your total message under 100 words
-5. Do NOT discuss timelines or implementation details yet
-6. IMPORTANT: Respond DIRECTLY in character without any meta-commentary like "Here's my attempt" or similar phrases
-
-TONE: Professional with a slight sense of urgency
-`
+      instructions: `CURRENT INTERACTION: 2 of 6 - Present a Project Change Request\n- Briefly mention a specific software project that already exists\n- Clearly describe one change or feature you need added\n- Provide 1-2 business reasons why this change is important\n- Be specific but keep your total message under 100 words\n- Do NOT discuss timelines or implementation details yet\nTONE: Professional, clear, focused`
     },
     {
       step: 3,
-      instructions: `
-CURRENT INTERACTION: 3 of 6 - Provide More Details
-
-For this interaction ONLY:
-1. Respond positively to the PM's previous message
-2. Add 2-3 SPECIFIC technical details about what you need (data fields, functions, etc.)
-3. Explain the business context more deeply
-4. Ask what information the PM needs from you
-5. Keep your message under 120 words
-6. Do NOT discuss timeline concerns yet
-7. IMPORTANT: Respond DIRECTLY in character without any meta-commentary like "Here's my attempt" or similar phrases
-
-TONE: Collaborative and detailed
-
-BAD EXAMPLE: "My response: When can this be done? We need it urgently."
-GOOD EXAMPLE: "That sounds great! I'll send over the formal request. To provide more context, we need to combine our campaign data with the CRM's customer journey tracking to analyze conversion rates in real-time. We specifically need access to the customer interaction timestamps and campaign source fields. What specific information should I include in my request?"
-`
+      instructions: `CURRENT INTERACTION: 3 of 6 - Provide More Details\n- Respond directly to the PM's last message, referencing their question or comment\n- Add 2-3 specific technical details about what you need (data fields, functions, etc.)\n- Explain the business context more deeply\n- Ask what information the PM needs from you\n- Keep your message under 120 words\nTONE: Collaborative, detailed, context-aware`
     },
     {
       step: 4,
-      instructions: `
-CURRENT INTERACTION: 4 of 6 - Express Timeline Concerns
-
-For this interaction ONLY:
-1. Thank the PM for their previous response
-2. Express concern about the project timeline and potential delays
-3. Ask for an estimate of when the changes could be completed
-4. Mention a specific upcoming deadline or business event that makes timing important
-5. Keep your message under 100 words
-6. Do NOT negotiate on scope or resources yet
-7. IMPORTANT: Respond DIRECTLY in character without any meta-commentary like "Here's my attempt" or similar phrases
-
-TONE: Concerned but respectful
-
-BAD EXAMPLE: "Here's what I'd say: We need this done immediately regardless of your other priorities."
-GOOD EXAMPLE: "Thanks for the clarification on what to include. I do have a pressing concern - our current project timeline is already quite tight, and introducing this integration could impact our go-live date. Could you provide insight into how these changes can be incorporated without causing delays? Our quarterly planning meeting is in three weeks, and we'd need this data by then."
-`
+      instructions: `CURRENT INTERACTION: 4 of 6 - Express Timeline Concerns\n- Thank the PM for their previous response (if appropriate)\n- Express concern about the project timeline and potential delays\n- Ask for an estimate of when the changes could be completed\n- Mention a specific upcoming deadline or business event that makes timing important\n- Keep your message under 100 words\nTONE: Respectful, direct, focused on timeline`
     },
     {
       step: 5,
-      instructions: `
-CURRENT INTERACTION: 5 of 6 - Discuss Constraints and Trade-offs
-
-For this interaction ONLY:
-1. Acknowledge the PM's previous response about timing
-2. Ask about ONE specific constraint (time, resources, or scope)
-3. Inquire if there are any trade-offs or alternatives to consider
-4. Show willingness to be flexible while emphasizing business importance
-5. Keep your message under 120 words
-6. Do NOT conclude the conversation yet
-7. IMPORTANT: Respond DIRECTLY in character without any meta-commentary like "Here's my attempt" or similar phrases
-
-TONE: Pragmatic and solution-oriented
-
-BAD EXAMPLE: "I would respond: That timeline doesn't work for us. We need it faster."
-GOOD EXAMPLE: "Thanks for the update on resources. I'm still concerned about meeting our quarterly planning deadline. Is there a way to implement a simplified version of the integration first, focusing on just the essential customer interaction data? Or could additional resources be allocated temporarily? I'm open to adjusting our requirements if it helps meet our critical deadline."
-`
+      instructions: `CURRENT INTERACTION: 5 of 6 - Discuss Constraints and Trade-offs\n- Reference the PM's last message, even if it was unclear or off-topic\n- Ask about one specific constraint (time, resources, or scope)\n- Inquire if there are any trade-offs or alternatives to consider\n- Show willingness to be flexible while emphasizing business importance\n- Keep your message under 120 words\nTONE: Solution-oriented, pragmatic, professional`
     },
     {
       step: 6,
-      instructions: `
-CURRENT INTERACTION: 6 of 6 - Thank and Conclude
-
-For this interaction ONLY:
-1. Thank the PM for their time and assistance
-2. Briefly summarize what was agreed upon or next steps
-3. Express confidence in the PM's ability to handle the request
-4. End the conversation positively
-5. Keep your message under 100 words
-6. This MUST be your final message in the conversation
-7. IMPORTANT: Respond DIRECTLY in character without any meta-commentary like "Here's my attempt" or similar phrases
-
-TONE: Appreciative and professional
-
-BAD EXAMPLE: "My response would be: Let me know when it's done."
-GOOD EXAMPLE: "Thank you for your time and helpful insights on our CRM integration request. I appreciate your team's willingness to work with our timeline constraints. I'll prepare the detailed requirements document as discussed and send it over by tomorrow. Looking forward to seeing this feature implemented and enhancing our reporting capabilities. Have a great rest of your day!"
-`
+      instructions: `CURRENT INTERACTION: 6 of 6 - Thank and Conclude\n- Thank the PM for their time and assistance\n- Briefly summarize what was agreed upon or next steps\n- Express confidence in the PM's ability to handle the request\n- End the conversation positively\n- Keep your message under 100 words\nTONE: Appreciative, professional, diplomatic`
     }
   ];
 
-  // Find the guide for the current interaction step
-  const currentGuide = interactionGuides.find(guide => guide.step === interactionStep) || 
-                       interactionGuides[interactionGuides.length - 1]; // Default to last guide if beyond steps
-
-  // Construct a concise conversation history
-  const recentMessages = conversationHistory.slice(-4); // Only include recent messages for context
-  const formattedHistory = recentMessages.map(m => 
-    `${m.role === "ai" ? "CLIENT" : "PM"}: ${m.content.substring(0, 150)}${m.content.length > 150 ? '...' : ''}`
-  ).join("\n\n");
+  const currentGuide = interactionGuides.find(guide => guide.step === interactionStep) || interactionGuides[interactionGuides.length - 1];
+  const recentMessages = conversationHistory.slice(-4);
+  const formattedHistory = recentMessages.map(m => `${m.role === "ai" ? "CLIENT" : "PM"}: ${m.content.substring(0, 150)}${m.content.length > 150 ? '...' : ''}`).join("\n\n");
 
   return `
-You are an internal client at a company who needs to interact with a project manager.
+You are an internal client at a company who needs to interact with a project manager about a real business project.
 
 ${currentGuide.instructions}
 
 IMPORTANT RULES:
-- Stay in character as the client
-- Only focus on the CURRENT interaction step ${interactionStep} of 6
-- Respond to the PM's last message appropriately, based on the actual conversation history and the latest PM message
-- If the PM's message is off-topic, unclear, or not relevant to the current step, respond naturally (e.g., ask for clarification, express confusion, or redirect the conversation)
-- Do not skip ahead to future interaction topics
-- Your response must sound natural and conversational
-- DO NOT include ANY phrases like "Here's my response" or "My answer would be" - just speak directly as the character
-- NEVER use meta-commentary about your response
+- Always respond to the PM's last message, referencing what they actually said (even if it was off-topic, unclear, or nonsensical).
+- If the PM's message is confusing, unprofessional, or irrelevant, respond as a real client would: ask for clarification, express confusion, or politely redirect the conversation to the project.
+- Maintain professionalism and keep the conversation focused on the business/project goal.
+- Do not skip ahead to future steps if the PM is not ready.
+- Your response must sound natural, context-aware, and realistic for the situation.
+- DO NOT include any meta-commentary or phrases like "Here's my response"—just speak directly as the client.
 
 Recent conversation history:
 ${formattedHistory}
 
 The PM's latest message is: "${userInput}"
 
-Respond ONLY as the client would in this interaction step, and make sure your reply is contextually appropriate.
+Respond ONLY as the client would in this interaction step, and make sure your reply is contextually appropriate and professional.
 `;
 };
 
@@ -189,66 +90,23 @@ You are an expert in project management communication, and your task is to evalu
 Provide your evaluation in valid JSON using the following format:
 {
   "evaluation": {
-    "clarify": { 
-      "score": [number between 0-10], 
-      "percentage": [number between 0-100], 
-      "feedback": ["specific observation 1", "specific observation 2"],
-      "modelAnswer": "Write a concise example of what would have been an excellent clarifying response for this interaction"
-    },
-    "legitimize": { 
-      "score": [number between 0-10], 
-      "percentage": [number between 0-100], 
-      "feedback": ["specific observation 1", "specific observation 2"],
-      "modelAnswer": "Write a concise example of what would have been an excellent response showing empathy and legitimizing concerns"
-    },
-    "addPerspective": { 
-      "score": [number between 0-10], 
-      "percentage": [number between 0-100], 
-      "feedback": ["specific observation 1", "specific observation 2"],
-      "modelAnswer": "Write a concise example of what would have been an excellent response adding perspective about constraints or considerations"
-    },
-    "visualizeOptions": { 
-      "score": [number between 0-10], 
-      "percentage": [number between 0-100], 
-      "feedback": ["specific observation 1", "specific observation 2"],
-      "modelAnswer": "Write a concise example of what would have been an excellent response exploring options or alternatives"
-    },
-    "establishAgreements": { 
-      "score": [number between 0-10], 
-      "percentage": [number between 0-100], 
-      "feedback": ["specific observation 1", "specific observation 2"],
-      "modelAnswer": "Write a concise example of what would have been an excellent response establishing clear next steps or commitments"
-    }
+    "clarify": { "score": [number between 0-10], "percentage": [number between 0-100], "feedback": ["specific observation 1", "specific observation 2"], "modelAnswer": "A concise example of an excellent clarifying response for this interaction" },
+    "legitimize": { "score": [number between 0-10], "percentage": [number between 0-100], "feedback": ["specific observation 1", "specific observation 2"], "modelAnswer": "A concise example of an excellent response showing empathy and legitimizing concerns" },
+    "addPerspective": { "score": [number between 0-10], "percentage": [number between 0-100], "feedback": ["specific observation 1", "specific observation 2"], "modelAnswer": "A concise example of an excellent response adding perspective about constraints or considerations" },
+    "visualizeOptions": { "score": [number between 0-10], "percentage": [number between 0-100], "feedback": ["specific observation 1", "specific observation 2"], "modelAnswer": "A concise example of an excellent response exploring options or alternatives" },
+    "establishAgreements": { "score": [number between 0-10], "percentage": [number between 0-100], "feedback": ["specific observation 1", "specific observation 2"], "modelAnswer": "A concise example of an excellent response establishing clear next steps or commitments" }
   },
   "overallFeedback": {
     "strengths": ["specific strength 1", "specific strength 2", "specific strength 3"],
     "areasForImprovement": ["specific improvement area 1", "specific improvement area 2", "specific improvement area 3"]
   },
   "modelAnswers": [
-    {
-      "interactionStep": 1,
-      "example": "Write a concise model response for the first PM interaction (responding to the client's greeting)"
-    },
-    {
-      "interactionStep": 2,
-      "example": "Write a concise model response for the second PM interaction (responding to the client's project change request)"
-    },
-    {
-      "interactionStep": 3,
-      "example": "Write a concise model response for the third PM interaction (responding to the client's details about requirements)"
-    },
-    {
-      "interactionStep": 4,
-      "example": "Write a concise model response for the fourth PM interaction (responding to the client's timeline concerns)"
-    },
-    {
-      "interactionStep": 5,
-      "example": "Write a concise model response for the fifth PM interaction (responding to the client's question about constraints)" 
-    },
-    {
-      "interactionStep": 6,
-      "example": "Write a concise model response for the sixth PM interaction (responding to the client's closing message)"
-    }
+    { "interactionStep": 1, "example": "A concise model response for the first PM interaction (responding to the client's greeting)" },
+    { "interactionStep": 2, "example": "A concise model response for the second PM interaction (responding to the client's project change request)" },
+    { "interactionStep": 3, "example": "A concise model response for the third PM interaction (responding to the client's details about requirements)" },
+    { "interactionStep": 4, "example": "A concise model response for the fourth PM interaction (responding to the client's timeline concerns)" },
+    { "interactionStep": 5, "example": "A concise model response for the fifth PM interaction (responding to the client's question about constraints)" },
+    { "interactionStep": 6, "example": "A concise model response for the sixth PM interaction (responding to the client's closing message)" }
   ]
 }
 

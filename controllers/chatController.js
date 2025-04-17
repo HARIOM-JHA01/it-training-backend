@@ -497,3 +497,105 @@ export const evaluateConversation = async (req, res) => {
     });
   }
 };
+
+// Returns only scores, feedback, and interaction metrics (no model answers)
+export const evaluateScores = async (req, res) => {
+  try {
+    const { conversationHistory } = req.body;
+    if (!conversationHistory || !Array.isArray(conversationHistory)) {
+      return res.status(400).json({ error: "Valid conversation history is required" });
+    }
+
+    let evaluation;
+    let retryCount = 0;
+    const maxRetries = 1;
+    let partialEvaluation = null;
+    const enhancedPromptSuffix = `\n\nIMPORTANT: Your response MUST be valid JSON. Format it exactly according to the structure specified, with no additional text or markdown formatting. Every field shown in the example must be included.`;
+
+    while (retryCount < maxRetries) {
+      try {
+        const customPrompt = await getPromptByType('evaluation');
+        let prompt;
+        if (customPrompt) {
+          const conversationHistoryText = conversationHistory.map(m => 
+            `${m.role === "ai" ? "Internal Client" : "PM"}: ${m.content}`
+          ).join("\n\n");
+          prompt = customPrompt.content.replace(/\$\{conversationHistory\}/g, conversationHistoryText);
+          prompt += enhancedPromptSuffix;
+        } else {
+          prompt = evaluationPrompt(conversationHistory) + enhancedPromptSuffix;
+        }
+        const systemPrompt = "You are a structured data extractor that ONLY responds with valid, properly formatted JSON according to the given schema.";
+        const evaluationResponse = await queryOllama(prompt, systemPrompt);
+        evaluation = parseEvaluationResponse(evaluationResponse);
+        if (evaluation) {
+          partialEvaluation = evaluation;
+        }
+        validateEvaluation(evaluation);
+        break;
+      } catch (error) {
+        retryCount++;
+        if (retryCount === maxRetries) {
+          if (partialEvaluation) {
+            evaluation = reconstructEvaluation(partialEvaluation);
+          } else {
+            evaluation = reconstructEvaluation();
+          }
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+      }
+    }
+
+    // Normalize and adjust scores
+    const scores = Object.keys(evaluation.evaluation).map(key => evaluation.evaluation[key].score);
+    const avgScore = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+    if (avgScore > 8) {
+      const scalingFactor = 8 / avgScore;
+      Object.keys(evaluation.evaluation).forEach(key => {
+        let adjustedScore = Math.round(evaluation.evaluation[key].score * scalingFactor * 10) / 10;
+        if (adjustedScore > 9.5) adjustedScore = 9.5;
+        evaluation.evaluation[key].score = adjustedScore;
+        evaluation.evaluation[key].percentage = (adjustedScore / 10) * 100;
+      });
+    } else {
+      Object.keys(evaluation.evaluation).forEach(key => {
+        evaluation.evaluation[key].percentage = (evaluation.evaluation[key].score / 10) * 100;
+      });
+    }
+
+    // Add interaction metrics
+    evaluation.interactionMetrics = {
+      totalInteractions: MAX_INTERACTIONS,
+      completedInteractions: Math.min(Math.floor(conversationHistory.length / 2), MAX_INTERACTIONS)
+    };
+
+    // Remove modelAnswers if present
+    delete evaluation.modelAnswers;
+
+    res.json(evaluation);
+  } catch (error) {
+    res.status(500).json({ error: "Server error during evaluation (scores)", details: error.message });
+  }
+};
+
+// Returns only model answers for the conversation
+export const getModelAnswers = async (req, res) => {
+  try {
+    const { conversationHistory } = req.body;
+    if (!conversationHistory || !Array.isArray(conversationHistory)) {
+      return res.status(400).json({ error: "Valid conversation history is required" });
+    }
+    const modelAnswers = [];
+    for (let i = 1; i <= MAX_INTERACTIONS; i++) {
+      const modelResponse = await generateModelAnswer(i);
+      modelAnswers.push({
+        interactionStep: i,
+        example: modelResponse
+      });
+    }
+    res.json({ modelAnswers });
+  } catch (error) {
+    res.status(500).json({ error: "Server error during model answer generation", details: error.message });
+  }
+};
