@@ -6,6 +6,19 @@ import { getPromptByType } from "../models/prompt.js";
 // Maximum number of interaction steps in the conversation
 const MAX_INTERACTIONS = 6;
 
+// Post-process AI response to remove unwanted phrases
+function cleanAIResponse(text) {
+  if (!text) return text;
+  return text
+    .replace(/Here\'s my response:?/gi, "")
+    .replace(/My answer would be:?/gi, "")
+    .replace(/Hi [A-Z][a-z]+[.!]?/gi, "")
+    .replace(/Hi Client[.!]?/gi, "")
+    .replace(/Hello [A-Z][a-z]+[.!]?/gi, "")
+    .replace(/Hello Client[.!]?/gi, "")
+    .replace(/^\s+|\s+$/g, "");
+}
+
 export const startChat = async (req, res) => {
   try {
     const { name } = req.body;
@@ -39,7 +52,7 @@ export const startChat = async (req, res) => {
       prompt = greetingPrompt(name, clientName, clientPersonality);
     }
     
-    const aiResponse = await queryOllama(prompt);
+    const aiResponse = cleanAIResponse(await queryOllama(prompt));
     await saveConversation("System: Start Chat", aiResponse, 1); // Interaction step 1
     
     res.json({ 
@@ -140,7 +153,7 @@ export const respondChat = async (req, res) => {
       prompt = conversationPrompt(conversationHistory, userMessage, clientName, interactionStep);
     }
     
-    const aiResponse = await queryOllama(prompt);
+    const aiResponse = cleanAIResponse(await queryOllama(prompt));
     await saveConversation(userMessage, aiResponse, interactionStep);
 
     // Determine if this is the final interaction

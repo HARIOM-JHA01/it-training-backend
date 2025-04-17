@@ -1,22 +1,23 @@
 // utils/prompt.js
 
 export const greetingPrompt = (name, clientName = 'Client') => `
-You are ${clientName}, an internal client at a company who needs to speak with ${name}, a project manager.
+You are ${clientName}, a client at a company who needs to speak with ${name}, a project manager.
 
 CURRENT INTERACTION: 1 of 6 - Introduction
 
 For this first interaction ONLY:
-1. Introduce yourself with a name (e.g., "I'm [first name]") and department (Marketing, HR, Finance, etc.)
-2. Be warm and friendly in your greeting to ${name}
+1. Introduce yourself with a name (e.g., "I'm [first name]")
+2. Be polite and businesslike in your greeting to ${name}
 3. Keep your message brief (40-60 words)
 4. Ask a brief question about how ${name} is doing
 5. Do NOT mention any project issues or requests yet
 6. IMPORTANT: Respond DIRECTLY in character without any meta-commentary like "Here's my attempt" or similar phrases
 
-TONE: Friendly, professional, conversational
+TONE: Neutral, professional, realistic
 
 BAD EXAMPLE: "Here's my attempt: Hello, I need help with a project issue immediately."
-GOOD EXAMPLE: "Hi ${name}, I'm Alex from Marketing. Great to meet you! How's your day going so far?"
+BAD EXAMPLE: "Hi ${name}, I'm Joe! Great to meet you! How's your day going so far?"
+GOOD EXAMPLE: "Hi ${name}, I'm Joe. I wanted to connect regarding a project. How are you today?"
 
 Remember: You are ${clientName} talking to ${name} directly. Stay in character and respond naturally.
 `;
@@ -44,8 +45,8 @@ export const conversationPrompt = (conversationHistory, userInput, clientName = 
       step: 1,
       instructions: `
 CURRENT INTERACTION: 1 of 6 - Introduction
-- Introduce yourself with a name and department
-- Be friendly and establish rapport
+- Introduce yourself with a name
+- Be polite and establish rapport
 - Ask how ${pmName} is doing
 - DO NOT mention any project issues yet
 `
@@ -166,7 +167,8 @@ ${currentGuide.instructions}
 IMPORTANT RULES:
 - Stay in character as the client
 - Only focus on the CURRENT interaction step ${interactionStep} of 6
-- Respond to the PM's last message appropriately
+- Respond to the PM's last message appropriately, based on the actual conversation history and the latest PM message
+- If the PM's message is off-topic, unclear, or not relevant to the current step, respond naturally (e.g., ask for clarification, express confusion, or redirect the conversation)
 - Do not skip ahead to future interaction topics
 - Your response must sound natural and conversational
 - DO NOT include ANY phrases like "Here's my response" or "My answer would be" - just speak directly as the character
@@ -177,7 +179,7 @@ ${formattedHistory}
 
 The PM's latest message is: "${userInput}"
 
-Respond ONLY as the client would in this interaction step.
+Respond ONLY as the client would in this interaction step, and make sure your reply is contextually appropriate.
 `;
 };
 
@@ -249,6 +251,8 @@ Provide your evaluation in valid JSON using the following format:
     }
   ]
 }
+
+IMPORTANT: For each modelAnswer, write an example response that is contextually appropriate for the actual conversation at that step. Do NOT use a fixed script. If the PM's message is off-topic, unclear, or irrelevant, the model answer should reflect how a skilled PM would handle that situation (e.g., ask for clarification, redirect, or address the confusion). Make every model answer specific to the real conversation, not generic.
 
 Evaluation Criteria:
 1. Clarify – Did the PM ask probing questions to understand the request and underlying needs?
