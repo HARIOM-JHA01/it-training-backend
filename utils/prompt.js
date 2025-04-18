@@ -127,7 +127,9 @@ Provide your evaluation in valid JSON using the following format:
   ]
 }
 
-IMPORTANT: For each modelAnswer, write an example response that is contextually appropriate for the actual conversation at that step. Do NOT use a fixed script. If the PM's message is off-topic, unclear, or irrelevant, the model answer should reflect how a skilled PM would handle that situation (e.g., ask for clarification, redirect, or address the confusion). Make every model answer specific to the real conversation, not generic.
+IMPORTANT:
+- For strengths and areas for improvement, DO NOT use generic or repeated phrases. Make them specific to the actual conversation and the PM’s real performance. Each time, analyze the conversation and provide unique, context-aware feedback.
+- For each modelAnswer, write an example response that is contextually appropriate for the actual conversation at that step. Do NOT use a fixed script. If the PM's message is off-topic, unclear, or irrelevant, the model answer should reflect how a skilled PM would handle that situation (e.g., ask for clarification, redirect, or address the confusion). Make every model answer specific to the real conversation, not generic.
 
 Evaluation Criteria:
 1. Clarify – Did the PM ask probing questions to understand the request and underlying needs?

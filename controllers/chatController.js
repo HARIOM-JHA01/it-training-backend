@@ -217,6 +217,50 @@ const parseEvaluationResponse = (response) => {
 // If validation fails but we have enough structure to work with,
 // attempt to reconstruct a valid evaluation object
 const reconstructEvaluation = (partialEvaluation) => {
+  // Define arrays of varied feedback options to randomly select from
+  const strengthOptions = [
+    "The PM communicated clearly and concisely",
+    "The PM demonstrated good listening skills",
+    "The PM maintained a professional tone throughout",
+    "The PM responded appropriately to the client's concerns",
+    "The PM showed technical understanding of the project",
+    "The PM was patient when handling unclear requests",
+    "The PM established a good rapport with the client",
+    "The PM effectively managed the client's expectations",
+    "The PM demonstrated problem-solving abilities",
+    "The PM was respectful and courteous in all responses",
+    "The PM showed good judgment when prioritizing requests",
+    "The PM asked relevant questions to clarify requirements",
+    "The PM showed empathy toward the client's situation",
+    "The PM kept the conversation focused on solutions"
+  ];
+  
+  const improvementOptions = [
+    "The PM could ask more probing questions to understand requirements",
+    "The PM could provide more specific timeline estimates",
+    "The PM could offer more alternative approaches to solving problems",
+    "The PM could better explain technical constraints and their implications",
+    "The PM could show more empathy when responding to concerns",
+    "The PM should establish clearer next steps and action items",
+    "The PM could be more proactive in identifying potential issues",
+    "The PM should acknowledge client concerns more explicitly",
+    "The PM could provide more detail in their explanations",
+    "The PM should be more decisive when making recommendations",
+    "The PM could communicate more efficiently with fewer words",
+    "The PM should follow up on previously discussed points more consistently",
+    "The PM could demonstrate deeper understanding of business impact",
+    "The PM should balance technical details with business context better"
+  ];
+  
+  // Randomly select 3 unique strengths and 3 unique improvement areas
+  const getRandomItems = (array, count) => {
+    const shuffled = [...array].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, count);
+  };
+  
+  const defaultStrengths = getRandomItems(strengthOptions, 3);
+  const defaultImprovements = getRandomItems(improvementOptions, 3);
+  
   const defaultEvaluation = {
     evaluation: {
       clarify: { score: 5, percentage: 50, feedback: ["The PM asked some clarifying questions."], modelAnswer: "Could you tell me more about your requirements? I'd like to understand the specific data fields you need access to and how you're planning to use this integration in your workflow." },
@@ -226,8 +270,8 @@ const reconstructEvaluation = (partialEvaluation) => {
       establishAgreements: { score: 5, percentage: 50, feedback: ["The PM discussed some next steps."], modelAnswer: "Let's plan for the following next steps: I'll create a detailed requirements document by Friday, schedule a meeting with the technical team next Tuesday, and provide you with a timeline estimate by the end of next week." }
     },
     overallFeedback: {
-      strengths: ["The PM maintained a professional tone", "The PM was responsive to the client's needs", "The PM showed technical knowledge"],
-      areasForImprovement: ["The PM could ask more probing questions", "The PM could be more specific about timelines", "The PM could offer more alternative solutions"]
+      strengths: defaultStrengths,
+      areasForImprovement: defaultImprovements
     },
     modelAnswers: []
   };
@@ -337,32 +381,25 @@ const validateEvaluation = (evaluation) => {
 };
 
 // Generate a model answer for a specific interaction step
-const generateModelAnswer = async (interactionStep) => {
-  // Define prompts for each interaction step
+const generateModelAnswer = async (interactionStep, pmName = "Project Manager") => {
+  // Always use Joe as the internal client name
+  // Use pmName from the first user message
   const modelAnswerPrompts = {
-    1: `You are a skilled project manager responding to an internal client's first message. The client has just greeted you and mentioned they need help with a project. Write a professional, friendly first response that introduces yourself as the PM and asks how you can help with their project needs. Keep your response concise (3-5 sentences) and make it sound natural.`,
-    
-    2: `You are a skilled project manager responding to an internal client who has just explained they need a CRM integration to improve their reporting capabilities. Write a professional response that 1) acknowledges their request, 2) asks clarifying questions about the specific data they need, and 3) inquires about their workflow and how they plan to use this integration. Keep your response concise (4-6 sentences) and make it sound natural.`,
-    
-    3: `You are a skilled project manager in an ongoing conversation with an internal client about a CRM integration project. The client has just provided details about needing customer interaction timestamps and campaign source data for their conversion analysis. Write a professional response that 1) acknowledges the specific data points they mentioned, 2) mentions that you'll need to check with the development team about API endpoints, and 3) asks for an example of the reports they hope to generate. Keep your response concise (4-6 sentences) and make it sound natural.`,
-    
-    4: `You are a skilled project manager responding to an internal client who has expressed concern about the timeline for implementing a CRM integration before their quarterly planning deadline. Write a professional response that 1) acknowledges their timeline concern, 2) provides a rough estimate of 2-3 weeks for implementation and testing, and 3) mentions you'll work to prioritize this and possibly expedite certain components. Keep your response concise (4-6 sentences) and make it sound natural.`,
-    
-    5: `You are a skilled project manager responding to an internal client about a CRM integration project. The client has just shown flexibility regarding the implementation approach. Write a professional response that 1) appreciates their flexibility, 2) proposes a phased approach with core functionality first and additional features later, and 3) mentions you'll speak with the development team about allocating additional resources to meet their deadline. Keep your response concise (4-6 sentences) and make it sound natural.`,
-    
-    6: `You are a skilled project manager wrapping up a conversation with an internal client about a CRM integration project. The client has just thanked you for your help. Write a professional closing response that 1) acknowledges their thanks, 2) summarizes the agreed approach (phased implementation), 3) mentions you'll document the plan and send it to them by tomorrow, and 4) proposes a check-in meeting next week. Keep your response concise (4-6 sentences) and make it sound natural.`
+    1: `You are a project manager named ${pmName}. The internal client, Joe, has just greeted you and mentioned they need help with a project. Write a short, professional, friendly first response (1-2 sentences) that introduces yourself as the PM and asks how you can help with their project needs.`,
+    2: `You are a project manager named ${pmName}. The internal client, Joe, has just explained they need a CRM integration to improve their reporting capabilities. Write a concise, professional response (2-3 sentences) that acknowledges their request, asks clarifying questions about the specific data they need, and inquires about their workflow.`,
+    3: `You are a project manager named ${pmName}. Joe has just provided details about needing customer interaction timestamps and campaign source data for their conversion analysis. Write a concise, professional response (2-3 sentences) that acknowledges the specific data points, mentions you'll check with the development team about API endpoints, and asks for an example of the reports they hope to generate.`,
+    4: `You are a project manager named ${pmName}. Joe has expressed concern about the timeline for implementing a CRM integration before their quarterly planning deadline. Write a concise, professional response (2-3 sentences) that acknowledges their timeline concern, provides a rough estimate, and mentions you'll work to prioritize this.`,
+    5: `You are a project manager named ${pmName}. Joe has shown flexibility regarding the implementation approach. Write a concise, professional response (2-3 sentences) that appreciates their flexibility, proposes a phased approach, and mentions you'll speak with the development team about resources.`,
+    6: `You are a project manager named ${pmName}. Joe has thanked you for your help. Write a concise, professional closing response (1-2 sentences) that acknowledges their thanks and summarizes the agreed approach.`,
   };
 
   try {
     if (!modelAnswerPrompts[interactionStep]) {
       return `Example response for interaction step ${interactionStep}.`;
     }
-    
     const systemPrompt = "You are an experienced project manager providing a model example of professional communication.";
     const modelAnswer = await queryOllama(modelAnswerPrompts[interactionStep], systemPrompt);
-    
-    // Clean up the response - remove quotes if present
-    return modelAnswer.replace(/^["']|["']$/g, '').trim();
+    return modelAnswer.replace(/^\["']|["']$/g, '').trim();
   } catch (error) {
     console.error(`Error generating model answer for step ${interactionStep}:`, error);
     return `Example response for interaction step ${interactionStep}.`;
@@ -375,6 +412,21 @@ export const evaluateConversation = async (req, res) => {
     
     if (!conversationHistory || !Array.isArray(conversationHistory)) {
       return res.status(400).json({ error: "Valid conversation history is required" });
+    }
+
+    // Get PM name from the first user message
+    let pmName = "Project Manager";
+    if (conversationHistory && conversationHistory.length > 0) {
+      const firstUserMsg = conversationHistory.find(m => m.role === "user");
+      if (firstUserMsg) {
+        // Try to extract a name from the first user message
+        const nameMatch = firstUserMsg.content.match(/Hi ([A-Z][a-z]+)/i);
+        if (nameMatch && nameMatch[1]) {
+          pmName = nameMatch[1];
+        } else if (firstUserMsg.content.split(" ").length === 1) {
+          pmName = firstUserMsg.content.trim();
+        }
+      }
     }
 
     let evaluation;
@@ -472,7 +524,7 @@ export const evaluateConversation = async (req, res) => {
     // Generate high-quality model answers using Ollama for each interaction step
     const modelAnswers = [];
     for (let i = 1; i <= MAX_INTERACTIONS; i++) {
-      const modelResponse = await generateModelAnswer(i);
+      const modelResponse = await generateModelAnswer(i, pmName);
       modelAnswers.push({
         interactionStep: i,
         example: modelResponse
@@ -585,9 +637,22 @@ export const getModelAnswers = async (req, res) => {
     if (!conversationHistory || !Array.isArray(conversationHistory)) {
       return res.status(400).json({ error: "Valid conversation history is required" });
     }
+    // Get PM name from the first user message
+    let pmName = "Project Manager";
+    if (conversationHistory && conversationHistory.length > 0) {
+      const firstUserMsg = conversationHistory.find(m => m.role === "user");
+      if (firstUserMsg) {
+        const nameMatch = firstUserMsg.content.match(/Hi ([A-Z][a-z]+)/i);
+        if (nameMatch && nameMatch[1]) {
+          pmName = nameMatch[1];
+        } else if (firstUserMsg.content.split(" ").length === 1) {
+          pmName = firstUserMsg.content.trim();
+        }
+      }
+    }
     const modelAnswers = [];
     for (let i = 1; i <= MAX_INTERACTIONS; i++) {
-      const modelResponse = await generateModelAnswer(i);
+      const modelResponse = await generateModelAnswer(i, pmName);
       modelAnswers.push({
         interactionStep: i,
         example: modelResponse
