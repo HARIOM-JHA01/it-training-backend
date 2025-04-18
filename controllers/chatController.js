@@ -16,6 +16,7 @@ function cleanAIResponse(text) {
     .replace(/Hi Client[.!]?/gi, "")
     .replace(/Hello [A-Z][a-z]+[.!]?/gi, "")
     .replace(/Hello Client[.!]?/gi, "")
+    .replace(/^[,\s]+/, "") // Remove any leading commas or whitespace
     .replace(/^\s+|\s+$/g, "");
 }
 
@@ -128,10 +129,8 @@ export const respondChat = async (req, res) => {
     
     // Calculate the current interaction step based on message count
     // Each interaction has 2 messages (user and AI), plus the initial greeting
-    const interactionStep = Math.min(
-      Math.floor((conversationHistory.length + 1) / 2) + 1,
-      MAX_INTERACTIONS
-    );
+    // Let the step potentially exceed MAX_INTERACTIONS to signal completion
+    const interactionStep = Math.floor((conversationHistory.length + 1) / 2) + 1;
     
     // Check if there's an active custom conversation prompt
     const customPrompt = await getPromptByType('conversation');
@@ -156,15 +155,15 @@ export const respondChat = async (req, res) => {
     const aiResponse = cleanAIResponse(await queryOllama(prompt));
     await saveConversation(userMessage, aiResponse, interactionStep);
 
-    // Determine if this is the final interaction
-    const isFinalInteraction = interactionStep >= MAX_INTERACTIONS;
+    // Determine if this is the final interaction based on the calculated step
+    const isFinalInteraction = interactionStep > MAX_INTERACTIONS;
 
     res.json({ 
       aiResponse, 
       prompt, 
       promptInfo: { 
         clientName,
-        interactionStep,
+        interactionStep, // Send the potentially > 6 step
         totalInteractions: MAX_INTERACTIONS,
         isFinalInteraction,
         userName
