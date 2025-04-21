@@ -1,4 +1,3 @@
-// config/ollama.js
 import ollama from "ollama";
 
 export const queryOllama = async (prompt) => {
@@ -9,6 +8,7 @@ export const queryOllama = async (prompt) => {
     });
     return response.message.content;
   } catch (error) {
+    console.error("Error querying Ollama:", error);
     throw error;
   }
 };

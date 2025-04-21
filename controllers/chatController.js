@@ -1,9 +1,8 @@
 import { queryOllama } from "../config/ollama.js";
 import { saveConversation } from "../models/conversation.js";
-import { greetingPrompt, conversationPrompt, evaluationPrompt } from "../utils/prompt.js";
+import { greetingPrompt, conversationPrompts, evaluationPrompt } from "../utils/prompt.js";
 import { getPromptByType } from "../models/prompt.js";
 
-// Maximum number of interaction steps in the conversation
 const MAX_INTERACTIONS = 6;
 
 // Post-process AI response to remove unwanted phrases
@@ -26,46 +25,14 @@ export const startChat = async (req, res) => {
     if (!name) {
       return res.status(400).json({ error: "Name is required" });
     }
+
+    let prompt = greetingPrompt(name);
     
-    // Get client name from request or use default
-    const { clientName = "Client" } = req.body;
-    
-    const personalities = [
-      "detail-oriented and analytical",
-      "results-focused and direct",
-      "collaborative and friendly",
-      "cautious and thorough",
-      "innovative and forward-thinking"
-    ];
-    const clientPersonality = personalities[Math.floor(Math.random() * personalities.length)];
-    
-    // Check if there's an active custom greeting prompt
-    const customPrompt = await getPromptByType('greeting');
-    let prompt;
-    
-    if (customPrompt) {
-      // Replace placeholders with actual values
-      prompt = customPrompt.content
-        .replace(/\$\{name\}/g, name)
-        .replace(/\$\{clientName\}/g, clientName)
-        .replace(/\$\{clientPersonality\}/g, clientPersonality);
-    } else {
-      prompt = greetingPrompt(name, clientName, clientPersonality);
-    }
-    
-    const aiResponse = cleanAIResponse(await queryOllama(prompt));
-    await saveConversation("System: Start Chat", aiResponse, 1); // Interaction step 1
-    
+    const aiResponse = await queryOllama(prompt);
+
     res.json({ 
-      aiResponse, 
-      prompt, 
-      promptInfo: { 
-        clientName, 
-        clientPersonality,
-        interactionStep: 1,
-        totalInteractions: MAX_INTERACTIONS,
-        userName: name
-      } 
+      "system-prompt": prompt,
+      "ai-response": aiResponse,
     });
   } catch (error) {
     console.error("Start Chat Error:", error);
@@ -75,107 +42,41 @@ export const startChat = async (req, res) => {
 
 export const respondChat = async (req, res) => {
   try {
-    console.log("Request body:", req.body);
-    const { conversationHistory, userMessage } = req.body;
+
+    const { conversationHistory, userMessage, interactionStep } = req.body;
     
     if (!userMessage) {
       return res.status(400).json({ error: "User message is required." });
     }
     
-    // Extract user name from conversation history or use a default
-    let userName = "Project Manager";
-    let clientName = "Client";
-    
-    // Look for prompt info in the request if available
-    if (req.body.promptInfo && req.body.promptInfo.userName) {
-      userName = req.body.promptInfo.userName;
-    } else if (req.body.userName) {
-      userName = req.body.userName;
-    } else {
-      // Try to extract from conversation context if not directly provided
-      if (conversationHistory && conversationHistory.length > 0) {
-        // Attempt to find name patterns in the first few messages
-        for (const msg of conversationHistory.slice(0, 3)) {
-          const nameMatches = msg.content.match(/Hi ([A-Z][a-z]+)|Hello ([A-Z][a-z]+)|Hey ([A-Z][a-z]+)/);
-          if (nameMatches) {
-            // Use the first captured group that isn't undefined
-            userName = nameMatches[1] || nameMatches[2] || nameMatches[3];
-            break;
-          }
-        }
-      }
+    if (!conversationHistory || !Array.isArray(conversationHistory)) {
+      return res.status(400).json({ error: "Valid conversation history is required." });
     }
-    
-    // Extract client name from AI messages if available
-    if (conversationHistory && conversationHistory.length > 0) {
-      // Try to find the client name from the first message
-      const firstMessage = conversationHistory.find(m => m.role === "ai");
-      if (firstMessage) {
-        const greeting = firstMessage.content;
-        
-        // Try to extract a name intro pattern like "I'm [Name]" or "name is [Name]"
-        const nameIntroMatch = greeting.match(/I('|')?m ([A-Z][a-z]+)|name('|')s ([A-Z][a-z]+)|name is ([A-Z][a-z]+)/i);
-        if (nameIntroMatch) {
-          // Use the first captured name group that isn't undefined
-          for (let i = 2; i <= 5; i++) {
-            if (nameIntroMatch[i]) {
-              clientName = nameIntroMatch[i];
-              break;
-            }
-          }
-        }
-      }
-    }
-    
-    // Calculate the current interaction step based on message count
-    // Each interaction has 2 messages (user and AI), plus the initial greeting
-    // Let the step potentially exceed MAX_INTERACTIONS to signal completion
-    const interactionStep = Math.floor((conversationHistory.length + 1) / 2) + 1;
-    
-    // Check if there's an active custom conversation prompt
-    const customPrompt = await getPromptByType('conversation');
-    let prompt;
-    
-    if (customPrompt) {
-      // Replace placeholders with actual values
-      const conversationHistoryText = conversationHistory.map(m => 
-        `${m.role === "ai" ? `${clientName}` : "PM"}: ${m.content}`
-      ).join("\n");
-      
-      prompt = customPrompt.content
-        .replace(/\$\{conversationHistory\}/g, conversationHistoryText)
-        .replace(/\$\{userInput\}/g, userMessage)
-        .replace(/\$\{clientName\}/g, clientName)
-        .replace(/\$\{interactionStep\}/g, interactionStep)
-        .replace(/\$\{name\}/g, userName);
-    } else {
-      prompt = conversationPrompt(conversationHistory, userMessage, clientName, interactionStep);
-    }
-    
-    const aiResponse = cleanAIResponse(await queryOllama(prompt));
-    await saveConversation(userMessage, aiResponse, interactionStep);
 
-    // Determine if this is the final interaction based on the calculated step
-    const isFinalInteraction = interactionStep > MAX_INTERACTIONS;
+    if(!interactionStep || typeof interactionStep !== "number") {
+      return res.status(400).json({ error: "Valid interaction step is required." });
+    }
 
-    res.json({ 
-      aiResponse, 
-      prompt, 
-      promptInfo: { 
-        clientName,
-        interactionStep, // Send the potentially > 6 step
-        totalInteractions: MAX_INTERACTIONS,
-        isFinalInteraction,
-        userName
-      } 
-    });
-  } catch (error) {
+    let systemPrompt = conversationPrompts(interactionStep);
+
+    const conversationHistoryText = conversationHistory.map(m =>
+      `${m.role === "client" ? "Client" : "PM"}: ${m.content}`
+    ).join("\n\n");
+
+    let finalPrompt = systemPrompt + conversationHistoryText + `\n\nPM: ${userMessage}`;
+
+    const aiResponse = cleanAIResponse(await queryOllama(finalPrompt));
+
+    res.json({
+      "system-prompt": systemPrompt,
+      "ai-response": aiResponse,
+      "conversation-history": conversationHistory,
+    })
+
+  }
+  catch (error) {
     console.error("Respond Chat Error:", error);
-    if (error instanceof SyntaxError) {
-      res.status(400).json({ error: "Invalid JSON in request body" });
-    } else {
-      res.status(500).json({ error: "Server error" });
-    }
+    return res.status(500).json({ error: "Server error" });
   }
 };
 

@@ -1,18 +1,18 @@
-import express from "express";
-import { getPrompts, createPrompt, setActivePrompt, getActivePrompt } from "../controllers/promptController.js";
+// import express from "express";
+// import { getPrompts, createPrompt, setActivePrompt, getActivePrompt } from "../controllers/promptController.js";
 
-const router = express.Router();
+// const router = express.Router();
 
-// Get all prompts of a specific type
-router.get("/types/:type", getPrompts);
+// // Get all prompts of a specific type
+// router.get("/types/:type", getPrompts);
 
-// Get the active prompt of a specific type
-router.get("/active/:type", getActivePrompt);
+// // Get the active prompt of a specific type
+// router.get("/active/:type", getActivePrompt);
 
-// Create a new prompt
-router.post("/", createPrompt);
+// // Create a new prompt
+// router.post("/", createPrompt);
 
-// Activate a specific prompt
-router.put("/activate/:id", setActivePrompt);
+// // Activate a specific prompt
+// router.put("/activate/:id", setActivePrompt);
 
-export default router;
+// export default router;
