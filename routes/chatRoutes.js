@@ -3,7 +3,7 @@ import { startChat, respondChat, evaluateConversation, evaluateScores, getModelA
 
 const router = express.Router();
 
-router.post("/start", startChat);
+router.post("/start-session", startChat);
 
 router.post("/respond", respondChat);
 
