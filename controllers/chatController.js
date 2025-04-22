@@ -12,10 +12,11 @@ function cleanAIResponse(text) {
   return text
     .replace(/Here\'s my response:?/gi, "")
     .replace(/My answer would be:?/gi, "")
-    .replace(/Hi [A-Z][a-z]+[.!]?/gi, "")
-    .replace(/Hi Client[.!]?/gi, "")
-    .replace(/Hello [A-Z][a-z]+[.!]?/gi, "")
-    .replace(/Hello Client[.!]?/gi, "")
+    // Don't strip out greeting phrases as they're part of the natural conversation
+    // .replace(/Hi [A-Z][a-z]+[.!]?/gi, "") - Removed
+    // .replace(/Hi Client[.!]?/gi, "") - Removed
+    // .replace(/Hello [A-Z][a-z]+[.!]?/gi, "") - Removed
+    // .replace(/Hello Client[.!]?/gi, "") - Removed
     .replace(/^[,\s]+/, "") // Remove any leading commas or whitespace
     .replace(/^\s+|\s+$/g, "");
 }
