@@ -1,6 +1,6 @@
 import { queryOllama } from "../config/ollama.js";
 import { saveConversation } from "../models/conversation.js";
-import { greetingPrompt, conversationPrompts, evaluationPrompt } from "../utils/prompt.js";
+import { greetingPrompt, conversationPrompt, evaluationPrompt } from "../utils/prompt.js";
 import { getPromptByType } from "../models/prompt.js";
 
 const MAX_INTERACTIONS = 6;
@@ -22,29 +22,46 @@ function cleanAIResponse(text) {
 
 export const startChat = async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, clientName = 'Client' } = req.body;
     if (!name) {
       return res.status(400).json({ error: "Name is required" });
     }
 
-    let prompt = greetingPrompt(name);
+    // Check if there's an active custom greeting prompt
+    const customPrompt = await getPromptByType('greeting');
+    let prompt;
     
-    const aiResponse = await queryOllama(prompt);
-
+    if (customPrompt) {
+      // Replace placeholders with actual values
+      prompt = customPrompt.content
+        .replace(/\$\{name\}/g, name)
+        .replace(/\$\{clientName\}/g, clientName);
+    } else {
+      prompt = greetingPrompt(name, clientName);
+    }
+    
+    const aiResponse = cleanAIResponse(await queryOllama(prompt));
+    await saveConversation("System: Start Chat", aiResponse, 1); // Interaction step 1
+    
     res.json({ 
-      "system-prompt": prompt,
-      "ai-response": aiResponse,
+      aiResponse, 
+      prompt, 
+      promptInfo: { 
+        clientName,
+        interactionStep: 1,
+        totalInteractions: MAX_INTERACTIONS,
+        userName: name
+      } 
     });
   } catch (error) {
     console.error("Start Chat Error:", error);
-    res.status(500).json({ error: "Server error" });
+    res.status(500).json({ error: "Server error", details: error.message });
   }
 };
 
 export const respondChat = async (req, res) => {
   try {
-
-    const { conversationHistory, userMessage, interactionStep } = req.body;
+    const { conversationHistory, userMessage, interactionStep = 2 } = req.body;
     
     if (!userMessage) {
       return res.status(400).json({ error: "User message is required." });
@@ -54,26 +71,37 @@ export const respondChat = async (req, res) => {
       return res.status(400).json({ error: "Valid conversation history is required." });
     }
 
-    if(!interactionStep || typeof interactionStep !== "number") {
-      return res.status(400).json({ error: "Valid interaction step is required." });
+    // Calculate current interaction step if not provided
+    let currentInteractionStep = interactionStep;
+    if (typeof currentInteractionStep !== "number" || isNaN(currentInteractionStep)) {
+      // If no valid step provided, calculate based on conversation history
+      // Each interaction consists of a client message + PM response
+      // First interaction was greeting, so start counting from 2
+      currentInteractionStep = Math.floor(conversationHistory.length / 2) + 1;
+      if (currentInteractionStep < 2) currentInteractionStep = 2;
     }
 
-    let systemPrompt = conversationPrompts(interactionStep);
+    // Ensure interaction step is within bounds
+    currentInteractionStep = Math.min(currentInteractionStep, MAX_INTERACTIONS);
+    
+    // Use the correct function name (conversationPrompt instead of conversationPrompts)
+    const promptResult = conversationPrompt(conversationHistory, userMessage, "Client", currentInteractionStep);
+    
+    const aiResponse = cleanAIResponse(await queryOllama(promptResult));
 
-    const conversationHistoryText = conversationHistory.map(m =>
-      `${m.role === "client" ? "Client" : "PM"}: ${m.content}`
-    ).join("\n\n");
-
-    let finalPrompt = systemPrompt + conversationHistoryText + `\n\nPM: ${userMessage}`;
-
-    const aiResponse = cleanAIResponse(await queryOllama(finalPrompt));
-
+    // Save conversation with updated step
+    await saveConversation(userMessage, aiResponse, currentInteractionStep);
+    
     res.json({
-      "system-prompt": systemPrompt,
-      "ai-response": aiResponse,
-      "conversation-history": conversationHistory,
-    })
-
+      "aiResponse": aiResponse,
+      "prompt": promptResult,
+      "promptInfo": {
+        "clientName": "Client",
+        "interactionStep": currentInteractionStep + 1, // Increment for next interaction
+        "totalInteractions": MAX_INTERACTIONS
+      },
+      "conversation-history": conversationHistory
+    });
   }
   catch (error) {
     console.error("Respond Chat Error:", error);
@@ -284,27 +312,70 @@ const validateEvaluation = (evaluation) => {
 
 // Generate a model answer for a specific interaction step
 const generateModelAnswer = async (interactionStep, pmName = "Project Manager") => {
-  // Always use Joe as the internal client name
-  // Use pmName from the first user message
+  // Define prompts for each interaction step
   const modelAnswerPrompts = {
-    1: `You are a project manager named ${pmName}. The internal client, Joe, has just greeted you and mentioned they need help with a project. Write a short, professional, friendly first response (1-2 sentences) that introduces yourself as the PM and asks how you can help with their project needs.`,
-    2: `You are a project manager named ${pmName}. The internal client, Joe, has just explained they need a CRM integration to improve their reporting capabilities. Write a concise, professional response (2-3 sentences) that acknowledges their request, asks clarifying questions about the specific data they need, and inquires about their workflow.`,
-    3: `You are a project manager named ${pmName}. Joe has just provided details about needing customer interaction timestamps and campaign source data for their conversion analysis. Write a concise, professional response (2-3 sentences) that acknowledges the specific data points, mentions you'll check with the development team about API endpoints, and asks for an example of the reports they hope to generate.`,
-    4: `You are a project manager named ${pmName}. Joe has expressed concern about the timeline for implementing a CRM integration before their quarterly planning deadline. Write a concise, professional response (2-3 sentences) that acknowledges their timeline concern, provides a rough estimate, and mentions you'll work to prioritize this.`,
-    5: `You are a project manager named ${pmName}. Joe has shown flexibility regarding the implementation approach. Write a concise, professional response (2-3 sentences) that appreciates their flexibility, proposes a phased approach, and mentions you'll speak with the development team about resources.`,
-    6: `You are a project manager named ${pmName}. Joe has thanked you for your help. Write a concise, professional closing response (1-2 sentences) that acknowledges their thanks and summarizes the agreed approach.`,
+    1: `You are a project manager named ${pmName}. Write a very brief, professional first response to a client who just said hello. 
+       It must be in FIRST PERSON (no "As ${pmName}, I would..."), extremely concise (10-15 words only), and simply introduce yourself and offer help.
+       Do NOT include phrases like "Here's my response" or any client name.`,
+       
+    2: `You are a project manager named ${pmName}. Write a brief response to a client who just requested a software feature change.
+       It must be in FIRST PERSON, concise (30-40 words), acknowledge their request, and ask 1-2 specific questions about their needs.
+       Do NOT include phrases like "Here's my response" or refer to yourself in third person.`,
+       
+    3: `You are a project manager named ${pmName}. Write a brief response to a client who provided technical details about their requirements.
+       It must be in FIRST PERSON, concise (40-50 words), mention you'll check with the dev team, and ask for one specific clarification.
+       Do NOT include any meta-commentary or refer to yourself in third person.`,
+       
+    4: `You are a project manager named ${pmName}. Write a brief response to a client concerned about project timeline.
+       It must be in FIRST PERSON, concise (40-50 words), acknowledge their deadline concern, provide a rough estimate, and mention prioritization.
+       Do NOT include any meta-commentary or phrases like "Here's what I would say".`,
+       
+    5: `You are a project manager named ${pmName}. Write a brief response about implementation approaches to a flexible client.
+       It must be in FIRST PERSON, concise (40-50 words), propose a specific approach, and mention next steps with the development team.
+       Do NOT include any meta-commentary or refer to yourself in third person.`,
+       
+    6: `You are a project manager named ${pmName}. Write a brief closing response to a client who thanked you.
+       It must be in FIRST PERSON, very concise (20-30 words), acknowledge their thanks, and summarize next steps.
+       Do NOT include any meta-commentary or refer to yourself in third person.`
   };
 
   try {
     if (!modelAnswerPrompts[interactionStep]) {
-      return `Example response for interaction step ${interactionStep}.`;
+      return `I'll help with your request and follow up with the development team.`;
     }
-    const systemPrompt = "You are an experienced project manager providing a model example of professional communication.";
-    const modelAnswer = await queryOllama(modelAnswerPrompts[interactionStep], systemPrompt);
-    return modelAnswer.replace(/^\["']|["']$/g, '').trim();
+    
+    const systemPrompt = "You are a project manager. Respond in first person, extremely concisely, with NO meta-commentary.";
+    let modelAnswer = await queryOllama(modelAnswerPrompts[interactionStep], systemPrompt);
+    
+    // Clean up the response
+    modelAnswer = modelAnswer
+      .replace(/^\s*["']|["']\s*$/g, '') // Remove quotes at beginning/end
+      .replace(/Here['']s my response:?/gi, "")
+      .replace(/As [A-Za-z]+ I would say:?/gi, "")
+      .replace(/As a project manager,?/gi, "")
+      .replace(/My response would be:?/gi, "")
+      .replace(/I would respond:?/gi, "")
+      .trim();
+    
+    // Enforce word limits based on interaction step
+    const words = modelAnswer.split(/\s+/);
+    if (interactionStep === 1 && words.length > 15) {
+      // For first interaction, limit to 15 words
+      modelAnswer = words.slice(0, 15).join(' ');
+    } else if (words.length > 50) {
+      // For other interactions, limit to 50 words max
+      modelAnswer = words.slice(0, 50).join(' ');
+    }
+    
+    // Ensure proper sentence endings
+    if (!modelAnswer.match(/[.!?]$/)) {
+      modelAnswer += '.';
+    }
+    
+    return modelAnswer;
   } catch (error) {
     console.error(`Error generating model answer for step ${interactionStep}:`, error);
-    return `Example response for interaction step ${interactionStep}.`;
+    return `I'll help with your project and provide guidance through each step.`;
   }
 };
 
@@ -422,6 +493,16 @@ export const evaluateConversation = async (req, res) => {
         evaluation.evaluation[key].percentage = (evaluation.evaluation[key].score / 10) * 100;
       });
     }
+
+    // Generate the overall assessment
+    const scoreValues = {};
+    Object.keys(evaluation.evaluation).forEach(key => {
+      scoreValues[key] = evaluation.evaluation[key].score;
+    });
+    
+    // Generate overall assessment text using AI
+    const overallAssessment = await generateOverallAssessment(conversationHistory, scoreValues);
+    evaluation.overallAssessment = overallAssessment;
 
     // Generate high-quality model answers using Ollama for each interaction step
     const modelAnswers = [];
@@ -563,5 +644,49 @@ export const getModelAnswers = async (req, res) => {
     res.json({ modelAnswers });
   } catch (error) {
     res.status(500).json({ error: "Server error during model answer generation", details: error.message });
+  }
+};
+
+// Generate an overall assessment of the conversation
+const generateOverallAssessment = async (conversationHistory, scores) => {
+  try {
+    // Calculate overall average score
+    const avgScore = Object.values(scores).reduce((sum, score) => sum + score, 0) / Object.values(scores).length;
+    
+    // Determine performance level based on average score
+    let performanceLevel = "needs improvement";
+    if (avgScore >= 8) {
+      performanceLevel = "excellent";
+    } else if (avgScore >= 6) {
+      performanceLevel = "good";
+    } else if (avgScore >= 4) {
+      performanceLevel = "fair";
+    }
+    
+    // Create prompt for generating overall assessment
+    const conversationHistoryText = conversationHistory.map(m => 
+      `${m.role === "ai" ? "Internal Client" : "PM"}: ${m.content}`
+    ).join("\n\n");
+    
+    const assessmentPrompt = `
+You are a project management coach evaluating a conversation between a PM and an internal client.
+Generate a concise overall assessment (2-3 paragraphs) of the PM's communication skills based on the conversation below.
+Focus on their strengths and areas for improvement, and provide specific actionable advice.
+Use a professional but encouraging tone. The PM's average score was ${avgScore.toFixed(1)}/10, indicating ${performanceLevel} performance.
+
+CONVERSATION:
+${conversationHistoryText}
+
+Your assessment should be practical, specific, and highlight both what worked well and concrete ways the PM can improve.
+Keep your response to 150-200 words maximum.
+`;
+
+    const systemPrompt = "You are a project management skills coach providing concise, actionable feedback.";
+    const assessment = await queryOllama(assessmentPrompt, systemPrompt);
+    
+    return assessment.trim();
+  } catch (error) {
+    console.error("Error generating overall assessment:", error);
+    return "Unable to generate overall assessment due to a technical issue. Please review the individual scores and feedback sections for performance details.";
   }
 };
