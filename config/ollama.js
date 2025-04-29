@@ -3,7 +3,7 @@ import ollama from "ollama";
 export const queryOllama = async (prompt) => {
   try {
     const response = await ollama.chat({
-      model: "llama3.1", 
+      model: "qwen2.5:32b", 
       messages: [{ role: "user", content: prompt }],
     });
     return response.message.content;

@@ -61,43 +61,39 @@ export const startChat = async (req, res) => {
 
 export const respondChat = async (req, res) => {
   try {
-    const { conversationHistory, userMessage, interactionStep = 2 } = req.body;
-    
+    const { conversationHistory, userMessage, interactionStep } = req.body;
     if (!userMessage) {
       return res.status(400).json({ error: "User message is required." });
     }
-    
     if (!conversationHistory || !Array.isArray(conversationHistory)) {
       return res.status(400).json({ error: "Valid conversation history is required." });
     }
 
-    // Calculate current interaction step if not provided
-    let currentInteractionStep = interactionStep;
-    if (typeof currentInteractionStep !== "number" || isNaN(currentInteractionStep)) {
-      // If no valid step provided, calculate based on conversation history
-      // Each interaction consists of a client message + PM response
-      // First interaction was greeting, so start counting from 2
+    // Calculate current interaction step
+    let currentInteractionStep;
+    if (typeof interactionStep === "number" && !isNaN(interactionStep)) {
+      currentInteractionStep = interactionStep;
+    } else {
+      // Each interaction is a client+PM pair, greeting is step 1
+      // So, after greeting (2 messages), next should be step 2
       currentInteractionStep = Math.floor(conversationHistory.length / 2) + 1;
       if (currentInteractionStep < 2) currentInteractionStep = 2;
     }
-
-    // Ensure interaction step is within bounds
+    // Ensure after greeting, next is always step 2
+    if (conversationHistory.length === 2) {
+      currentInteractionStep = 2;
+    }
     currentInteractionStep = Math.min(currentInteractionStep, MAX_INTERACTIONS);
-    
-    // Use the correct function name (conversationPrompt instead of conversationPrompts)
-    const promptResult = conversationPrompt(conversationHistory, userMessage, "Client", currentInteractionStep);
-    
-    const aiResponse = cleanAIResponse(await queryOllama(promptResult));
 
-    // Save conversation with updated step
+    const promptResult = conversationPrompt(conversationHistory, userMessage, "Client", currentInteractionStep);
+    const aiResponse = cleanAIResponse(await queryOllama(promptResult));
     await saveConversation(userMessage, aiResponse, currentInteractionStep);
-    
     res.json({
       "aiResponse": aiResponse,
       "prompt": promptResult,
       "promptInfo": {
         "clientName": "Client",
-        "interactionStep": currentInteractionStep + 1, // Increment for next interaction
+        "interactionStep": currentInteractionStep + 1,
         "totalInteractions": MAX_INTERACTIONS
       },
       "conversation-history": conversationHistory
@@ -315,27 +311,37 @@ const generateModelAnswer = async (interactionStep, pmName = "Project Manager") 
   // Define prompts for each interaction step
   const modelAnswerPrompts = {
     1: `You are a project manager named ${pmName}. Write a very brief, professional first response to a client who just said hello. 
-       It must be in FIRST PERSON (no "As ${pmName}, I would..."), extremely concise (10-15 words only), and simply introduce yourself and offer help.
+       Your response should be warm but professional, maintaining a positive business relationship tone.
+       It must be in FIRST PERSON (no "As ${pmName}, I would..."), extremely concise (10-15 words only), and simply greet them back and offer help.
        Do NOT include phrases like "Here's my response" or any client name.`,
        
-    2: `You are a project manager named ${pmName}. Write a brief response to a client who just requested a software feature change.
-       It must be in FIRST PERSON, concise (30-40 words), acknowledge their request, and ask 1-2 specific questions about their needs.
+    2: `You are a project manager named ${pmName}. Write a brief response to a client who just requested an urgent last-minute feature change for a project due in 2 weeks.
+       Your response should: 1) acknowledge their request professionally, 2) show understanding of the urgency, 3) ask 1-2 specific questions about requirements/scope, and 4) indicate you'll look into the feasibility.
+       It must be in FIRST PERSON, concise (40-50 words), balanced (neither promising nor rejecting), and demonstrate active listening.
        Do NOT include phrases like "Here's my response" or refer to yourself in third person.`,
        
-    3: `You are a project manager named ${pmName}. Write a brief response to a client who provided technical details about their requirements.
-       It must be in FIRST PERSON, concise (40-50 words), mention you'll check with the dev team, and ask for one specific clarification.
+    3: `You are a project manager named ${pmName}. Write a brief response to a client who provided technical details about their urgent feature request.
+       Your response should: 1) thank them for the details, 2) acknowledge you understand the business need, 3) mention consultation with the development team, 
+       4) ask one specific clarification about priority/integration points, and 5) indicate you'll assess timeline impact.
+       It must be in FIRST PERSON, concise (50-60 words), and show technical competence without being overly technical.
        Do NOT include any meta-commentary or refer to yourself in third person.`,
        
-    4: `You are a project manager named ${pmName}. Write a brief response to a client concerned about project timeline.
-       It must be in FIRST PERSON, concise (40-50 words), acknowledge their deadline concern, provide a rough estimate, and mention prioritization.
+    4: `You are a project manager named ${pmName}. Write a brief response to a client concerned about the tight timeline for their urgent feature request.
+       Your response should: 1) validate their timeline concern, 2) provide a realistic preliminary estimate with some flexibility, 3) suggest a specific prioritization approach, 
+       and 4) mention one potential trade-off that might need consideration.
+       It must be in FIRST PERSON, concise (50-60 words), confident but not over-promising, and focused on solutions.
        Do NOT include any meta-commentary or phrases like "Here's what I would say".`,
        
-    5: `You are a project manager named ${pmName}. Write a brief response about implementation approaches to a flexible client.
-       It must be in FIRST PERSON, concise (40-50 words), propose a specific approach, and mention next steps with the development team.
+    5: `You are a project manager named ${pmName}. Write a brief response about implementation approaches for an urgent feature request.
+       Your response should: 1) reference the constraints mentioned, 2) propose a specific phased approach with a quick win first, 3) explain how this balances speed and quality,
+       4) mention next concrete steps with the development team, and 5) confirm you'll keep them updated on progress.
+       It must be in FIRST PERSON, concise (50-60 words), solution-oriented, and demonstrate your expertise in managing complex requirements.
        Do NOT include any meta-commentary or refer to yourself in third person.`,
        
-    6: `You are a project manager named ${pmName}. Write a brief closing response to a client who thanked you.
-       It must be in FIRST PERSON, very concise (20-30 words), acknowledge their thanks, and summarize next steps.
+    6: `You are a project manager named ${pmName}. Write a brief closing response to a client who thanked you for handling their urgent request.
+       Your response should: 1) acknowledge their thanks professionally, 2) summarize the key next steps agreed upon, 3) confirm timeline expectations, 
+       4) express confidence in meeting their needs, and 5) offer continued availability for questions.
+       It must be in FIRST PERSON, very concise (30-40 words), positive and forward-looking.
        Do NOT include any meta-commentary or refer to yourself in third person.`
   };
 
@@ -344,7 +350,7 @@ const generateModelAnswer = async (interactionStep, pmName = "Project Manager") 
       return `I'll help with your request and follow up with the development team.`;
     }
     
-    const systemPrompt = "You are a project manager. Respond in first person, extremely concisely, with NO meta-commentary.";
+    const systemPrompt = "You are a skilled project manager. Respond in first person, extremely concisely, with NO meta-commentary. Focus on being professional, helpful, and solution-oriented.";
     let modelAnswer = await queryOllama(modelAnswerPrompts[interactionStep], systemPrompt);
     
     // Clean up the response
@@ -359,12 +365,16 @@ const generateModelAnswer = async (interactionStep, pmName = "Project Manager") 
     
     // Enforce word limits based on interaction step
     const words = modelAnswer.split(/\s+/);
-    if (interactionStep === 1 && words.length > 15) {
-      // For first interaction, limit to 15 words
-      modelAnswer = words.slice(0, 15).join(' ');
-    } else if (words.length > 50) {
-      // For other interactions, limit to 50 words max
-      modelAnswer = words.slice(0, 50).join(' ');
+    let wordLimit = 60; // Default word limit
+    
+    if (interactionStep === 1) {
+      wordLimit = 15; // First interaction is more concise
+    } else if (interactionStep === 6) {
+      wordLimit = 40; // Closing is moderately concise
+    }
+    
+    if (words.length > wordLimit) {
+      modelAnswer = words.slice(0, wordLimit).join(' ');
     }
     
     // Ensure proper sentence endings
