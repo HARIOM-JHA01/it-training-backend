@@ -1,4 +1,5 @@
 import { queryOllama } from "../config/ollama.js";
+import { queryBedrock } from "../config/bedrock.js";
 import { saveConversation } from "../models/conversation.js";
 import { greetingPrompt, conversationPrompt, evaluationPrompt } from "../utils/prompt.js";
 import { getPromptByType } from "../models/prompt.js";
@@ -22,7 +23,7 @@ function cleanAIResponse(text) {
 
 export const startChat = async (req, res) => {
   try {
-    const { name, clientName = 'Client' } = req.body;
+    const { name, clientName = 'Client', model = 'qwen2.5:32b' } = req.body;
     if (!name) {
       return res.status(400).json({ error: "Name is required" });
     }
@@ -40,9 +41,17 @@ export const startChat = async (req, res) => {
       prompt = greetingPrompt(name, clientName);
     }
     
-    const aiResponse = cleanAIResponse(await queryOllama(prompt));
+    let aiResponse;
+    if (model === "qwen2.5:32b" || model === "llama3.1:latest") {
+      aiResponse = cleanAIResponse(await queryOllama(prompt));
+    } else if (model === "bedrock-claude-2" || model === "bedrock-llama3-70b") {
+      aiResponse = cleanAIResponse(await queryBedrock({ prompt, model }));
+    } else {
+      return res.status(400).json({ error: "Unknown model selected" });
+    }
     await saveConversation("System: Start Chat", aiResponse, 1); // Interaction step 1
     
+    // Attach model to response for debugging (optional)
     res.json({ 
       aiResponse, 
       prompt, 
@@ -50,8 +59,10 @@ export const startChat = async (req, res) => {
         clientName,
         interactionStep: 1,
         totalInteractions: MAX_INTERACTIONS,
-        userName: name
-      } 
+        userName: name,
+        model
+      },
+      model // echo back
     });
   } catch (error) {
     console.error("Start Chat Error:", error);
@@ -61,7 +72,7 @@ export const startChat = async (req, res) => {
 
 export const respondChat = async (req, res) => {
   try {
-    const { conversationHistory, userMessage, interactionStep } = req.body;
+    const { conversationHistory, userMessage, interactionStep, model = 'qwen2.5:32b' } = req.body;
     if (!userMessage) {
       return res.status(400).json({ error: "User message is required." });
     }
@@ -86,17 +97,27 @@ export const respondChat = async (req, res) => {
     currentInteractionStep = Math.min(currentInteractionStep, MAX_INTERACTIONS);
 
     const promptResult = conversationPrompt(conversationHistory, userMessage, "Client", currentInteractionStep);
-    const aiResponse = cleanAIResponse(await queryOllama(promptResult));
+    let aiResponse;
+    if (model === "qwen2.5:32b" || model === "llama3.1:latest") {
+      aiResponse = cleanAIResponse(await queryOllama(promptResult));
+    } else if (model === "bedrock-claude-2" || model === "bedrock-llama3-70b") {
+      aiResponse = cleanAIResponse(await queryBedrock({ prompt: promptResult, model }));
+    } else {
+      return res.status(400).json({ error: "Unknown model selected" });
+    }
     await saveConversation(userMessage, aiResponse, currentInteractionStep);
+    // Attach model to response for debugging (optional)
     res.json({
       "aiResponse": aiResponse,
       "prompt": promptResult,
       "promptInfo": {
         "clientName": "Client",
-        "interactionStep": currentInteractionStep + 1,
-        "totalInteractions": MAX_INTERACTIONS
+        "interactionStep": currentInteractionStep,
+        "totalInteractions": MAX_INTERACTIONS,
+        "model": model
       },
-      "conversation-history": conversationHistory
+      "conversation-history": conversationHistory,
+      model // echo back
     });
   }
   catch (error) {

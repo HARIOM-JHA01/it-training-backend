@@ -6,7 +6,7 @@ import swaggerSpec from "./config/swagger.js";
 import path from "path";
 import { fileURLToPath } from "url";
 import chatRoutes from "./routes/chatRoutes.js";
-// import promptRoutes from "./routes/promptRoutes.js";
+import promptRoutes from "./routes/promptRoutes.js";
 
 dotenv.config();
 
@@ -76,7 +76,7 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use("/api/chat", chatRoutes);
-// app.use("/api/prompts", promptRoutes);
+app.use("/api/prompts", promptRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {

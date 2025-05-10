@@ -44,6 +44,10 @@ const swaggerOptions = {
             clientName: {
               type: 'string',
               description: 'The name of the client (defaults to "Joe")'
+            },
+            model: {
+              type: 'string',
+              description: 'The model to use (e.g., qwen2.5:32b, llama3.1:latest, bedrock-claude-2, bedrock-llama3-70b)'
             }
           }
         },
@@ -110,6 +114,10 @@ const swaggerOptions = {
             interactionStep: {
               type: 'integer',
               description: 'The current interaction step'
+            },
+            model: {
+              type: 'string',
+              description: 'The model to use (e.g., qwen2.5:32b, llama3.1:latest, bedrock-claude-2, bedrock-llama3-70b)'
             }
           }
         },
@@ -168,6 +176,10 @@ const swaggerOptions = {
                   }
                 }
               }
+            },
+            model: {
+              type: 'string',
+              description: 'The model to use for evaluation (optional, e.g., qwen2.5:32b, llama3.1:latest, bedrock-claude-2, bedrock-llama3-70b)'
             }
           }
         }
