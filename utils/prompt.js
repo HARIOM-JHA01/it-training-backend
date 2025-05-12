@@ -11,6 +11,10 @@ Your task is to write a brief, friendly, and direct opening message. Follow thes
 4. Keep the message under 20 words.
 5. Stay in character as Joe. No meta-comments or explanations.
 6. TONE: Friendly, direct, realistic, and professional.
+7. VERY IMPORTANT: DO NOT include any meta comments or explanations. Just write the message as if you are Joe.
+8. DO NOT use phrases like "Since the PM's response was..." or "Note: In this step..." or ANY meta-commentary.
+9. DO NOT include ANY explanatory notes, parenthetical comments, or ANY text explaining what you are trying to do.
+10. NEVER EVER include text like "(Note: ...)" anywhere in your response. Do not include expressions like Nods, Smiles, etc.
 
 EXAMPLE RESPONSE:
 "Hi ${name}, how are you doing today?"
@@ -36,23 +40,23 @@ export const conversationPrompt = (conversationHistory, userInput, clientName = 
   const interactionGuides = [
     {
       step: 2,
-      instructions: `CURRENT INTERACTION: 2 of 6 - Sudden Feature Change Request\n- After a brief pleasantry (5-10 words), immediately bring up a new, urgent feature/change you need in the project (which is due in 2 weeks)\n- Clearly state what the new requirement is and why it is important (mention new circumstances)\n- Express awareness that this is a last-minute request and may impact delivery\n- Ask if it is possible to accommodate this change\n- Keep your TOTAL message under 80 words\n- Be direct, realistic, and acknowledge the pressure\nTONE: Urgent, apologetic, professional`
+      instructions: `CURRENT INTERACTION: 2 of 6 - Sudden Feature Change Request\n- After a brief pleasantry (5-10 words), immediately bring up a new, urgent feature/change you need in the project (which is due in 2 weeks)\n- Clearly state what the new requirement is and why it is important (mention new circumstances)\n- Express awareness that this is a last-minute request and may impact delivery\n- Ask if it is possible to accommodate this change\n- Keep your TOTAL message under 80 words\n- Be direct, realistic, and acknowledge the pressure\nTONE: Urgent, professional. Do not mention any meta comments and things like nods, smiles, etc.`
     },
     {
       step: 3,
-      instructions: `CURRENT INTERACTION: 3 of 6 - Provide Details and Justification\n- DO NOT start with "Hi Hariom" or any formal greeting - this is a continuing conversation\n- Respond directly to the PM's question or reaction\n- Give 2-3 specific details about the new requirement (fields, functions, etc.)\n- Explain the business reason for the change\n- Acknowledge the impact on timeline/resources\n- Ask what information the PM needs from you\n- Keep your message under 90 words\nTONE: Collaborative, realistic, context-aware`
+      instructions: `CURRENT INTERACTION: 3 of 6 - Provide Details and Justification\n- DO NOT start with "Hi Hariom" or any formal greeting - this is a continuing conversation\n- Respond directly to the PM's question or reaction\n- Give 2-3 specific details about the new requirement (fields, functions, etc.)\n- Explain the business reason for the change\n- Acknowledge the impact on timeline/resources\n- Ask what information the PM needs from you\n- Keep your message under 90 words\nTONE: Collaborative, realistic, context-aware. Do not mention any meta comments and things like nods, smiles, etc.`
     },
     {
       step: 4,
-      instructions: `CURRENT INTERACTION: 4 of 6 - Discuss Timeline and Constraints\n- DO NOT use any formal greeting - continue the conversation naturally\n- Thank the PM for their response (briefly)\n- Express concern about the tight deadline and ask for a realistic estimate if the change is possible\n- Ask about any trade-offs or risks\n- Mention the business event/deadline in 2 weeks\n- Keep your message under 70 words\nTONE: Respectful, direct, focused on delivery`
+      instructions: `CURRENT INTERACTION: 4 of 6 - Discuss Timeline and Constraints\n- DO NOT use any formal greeting - continue the conversation naturally\n- Thank the PM for their response (briefly)\n- Express concern about the tight deadline and ask for a realistic estimate if the change is possible\n- Ask about any trade-offs or risks\n- Mention the business event/deadline in 2 weeks\n- Keep your message under 70 words\nTONE: Respectful, direct, focused on delivery. Do not mention any meta comments and things like nods, smiles, etc.`
     },
     {
       step: 5,
-      instructions: `CURRENT INTERACTION: 5 of 6 - Negotiate and Prioritize\n- DO NOT use any formal greeting - continue the conversation naturally\n- Reference the PM's last message (in 10 words or less)\n- Ask if anything can be deprioritized or adjusted to fit the new request\n- Show willingness to compromise, but emphasize the importance of the new requirement\n- Keep your message under 70 words\nTONE: Solution-oriented, pragmatic, professional`
+      instructions: `CURRENT INTERACTION: 5 of 6 - Negotiate and Prioritize\n- DO NOT use any formal greeting - continue the conversation naturally\n- Reference the PM's last message (in 10 words or less)\n- Ask if anything can be deprioritized or adjusted to fit the new request\n- Show willingness to compromise, but emphasize the importance of the new requirement\n- Keep your message under 70 words\nTONE: Solution-oriented, pragmatic, professional. Do not mention any meta comments and things like nods, smiles, etc.`
     },
     {
       step: 6,
-      instructions: `CURRENT INTERACTION: 6 of 6 - Confirm and Close\n- DO NOT use any formal greeting - continue the conversation naturally\n- Thank the PM for their flexibility and help\n- Summarize the agreed plan or next steps in 1-2 sentences\n- Express appreciation and confidence in the PM\n- End the conversation positively\n- Keep your message under 50 words\nTONE: Appreciative, professional, diplomatic`
+      instructions: `CURRENT INTERACTION: 6 of 6 - Confirm and Close\n- DO NOT use any formal greeting - continue the conversation naturally\n- Thank the PM for their flexibility and help\n- Summarize the agreed plan or next steps in 1-2 sentences\n- Express appreciation and confidence in the PM\n- End the conversation positively\n- Keep your message under 50 words\nTONE: Appreciative, professional, diplomatic. Do not mention any meta comments and things like nods, smiles, etc.`
     }
   ];
 

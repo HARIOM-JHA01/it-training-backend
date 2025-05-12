@@ -17,7 +17,7 @@ const BEDROCK_MODEL_IDS = {
   "bedrock-llama3-70b": "arn:aws:bedrock:us-east-1:894304940763:inference-profile/us.meta.llama3-3-70b-instruct-v1:0"
 };
 
-export async function queryBedrock({ prompt, model, maxTokens = 1024, temperature = 0.7, top_p = 0.9 }) {
+export async function queryBedrock({ prompt, model, maxTokens = 2048, temperature = 0.7, top_p = 0.9 }) {
   const region = process.env.AWS_REGION || "us-east-1";
   const modelId = BEDROCK_MODEL_IDS[model];
   if (!modelId) throw new Error("Unknown Bedrock model: " + model);

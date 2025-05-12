@@ -1,4 +1,3 @@
-import { queryOllama } from "../config/ollama.js";
 import { queryBedrock } from "../config/bedrock.js";
 import { saveConversation } from "../models/conversation.js";
 import { greetingPrompt, conversationPrompt, evaluationPrompt } from "../utils/prompt.js";
@@ -23,7 +22,7 @@ function cleanAIResponse(text) {
 
 export const startChat = async (req, res) => {
   try {
-    const { name, clientName = 'Client', model = 'qwen2.5:32b' } = req.body;
+    const { name, clientName = 'Joe', model = 'bedrock-claude-2' } = req.body;
     if (!name) {
       return res.status(400).json({ error: "Name is required" });
     }
@@ -42,9 +41,7 @@ export const startChat = async (req, res) => {
     }
     
     let aiResponse;
-    if (model === "qwen2.5:32b" || model === "llama3.1:latest") {
-      aiResponse = cleanAIResponse(await queryOllama(prompt));
-    } else if (model === "bedrock-claude-2" || model === "bedrock-llama3-70b") {
+    if (model === "bedrock-claude-2" || model === "bedrock-llama3-70b") {
       aiResponse = cleanAIResponse(await queryBedrock({ prompt, model }));
     } else {
       return res.status(400).json({ error: "Unknown model selected" });
@@ -72,7 +69,7 @@ export const startChat = async (req, res) => {
 
 export const respondChat = async (req, res) => {
   try {
-    const { conversationHistory, userMessage, interactionStep, model = 'qwen2.5:32b' } = req.body;
+    const { conversationHistory, userMessage, interactionStep, model = 'bedrock-claude-2' } = req.body;
     if (!userMessage) {
       return res.status(400).json({ error: "User message is required." });
     }
@@ -98,9 +95,7 @@ export const respondChat = async (req, res) => {
 
     const promptResult = conversationPrompt(conversationHistory, userMessage, "Client", currentInteractionStep);
     let aiResponse;
-    if (model === "qwen2.5:32b" || model === "llama3.1:latest") {
-      aiResponse = cleanAIResponse(await queryOllama(promptResult));
-    } else if (model === "bedrock-claude-2" || model === "bedrock-llama3-70b") {
+    if (model === "bedrock-claude-2" || model === "bedrock-llama3-70b") {
       aiResponse = cleanAIResponse(await queryBedrock({ prompt: promptResult, model }));
     } else {
       return res.status(400).json({ error: "Unknown model selected" });
@@ -327,82 +322,46 @@ const validateEvaluation = (evaluation) => {
   return true;
 };
 
-// Generate a model answer for a specific interaction step
-const generateModelAnswer = async (interactionStep, pmName = "Project Manager") => {
-  // Define prompts for each interaction step
-  const modelAnswerPrompts = {
-    1: `You are a project manager named ${pmName}. Write a very brief, professional first response to a client who just said hello. 
-       Your response should be warm but professional, maintaining a positive business relationship tone.
-       It must be in FIRST PERSON (no "As ${pmName}, I would..."), extremely concise (10-15 words only), and simply greet them back and offer help.
-       Do NOT include phrases like "Here's my response" or any client name.`,
-       
-    2: `You are a project manager named ${pmName}. Write a brief response to a client who just requested an urgent last-minute feature change for a project due in 2 weeks.
-       Your response should: 1) acknowledge their request professionally, 2) show understanding of the urgency, 3) ask 1-2 specific questions about requirements/scope, and 4) indicate you'll look into the feasibility.
-       It must be in FIRST PERSON, concise (40-50 words), balanced (neither promising nor rejecting), and demonstrate active listening.
-       Do NOT include phrases like "Here's my response" or refer to yourself in third person.`,
-       
-    3: `You are a project manager named ${pmName}. Write a brief response to a client who provided technical details about their urgent feature request.
-       Your response should: 1) thank them for the details, 2) acknowledge you understand the business need, 3) mention consultation with the development team, 
-       4) ask one specific clarification about priority/integration points, and 5) indicate you'll assess timeline impact.
-       It must be in FIRST PERSON, concise (50-60 words), and show technical competence without being overly technical.
-       Do NOT include any meta-commentary or refer to yourself in third person.`,
-       
-    4: `You are a project manager named ${pmName}. Write a brief response to a client concerned about the tight timeline for their urgent feature request.
-       Your response should: 1) validate their timeline concern, 2) provide a realistic preliminary estimate with some flexibility, 3) suggest a specific prioritization approach, 
-       and 4) mention one potential trade-off that might need consideration.
-       It must be in FIRST PERSON, concise (50-60 words), confident but not over-promising, and focused on solutions.
-       Do NOT include any meta-commentary or phrases like "Here's what I would say".`,
-       
-    5: `You are a project manager named ${pmName}. Write a brief response about implementation approaches for an urgent feature request.
-       Your response should: 1) reference the constraints mentioned, 2) propose a specific phased approach with a quick win first, 3) explain how this balances speed and quality,
-       4) mention next concrete steps with the development team, and 5) confirm you'll keep them updated on progress.
-       It must be in FIRST PERSON, concise (50-60 words), solution-oriented, and demonstrate your expertise in managing complex requirements.
-       Do NOT include any meta-commentary or refer to yourself in third person.`,
-       
-    6: `You are a project manager named ${pmName}. Write a brief closing response to a client who thanked you for handling their urgent request.
-       Your response should: 1) acknowledge their thanks professionally, 2) summarize the key next steps agreed upon, 3) confirm timeline expectations, 
-       4) express confidence in meeting their needs, and 5) offer continued availability for questions.
-       It must be in FIRST PERSON, very concise (30-40 words), positive and forward-looking.
-       Do NOT include any meta-commentary or refer to yourself in third person.`
-  };
+// Generate a model answer for a specific interaction step, using actual conversation context
+const generateModelAnswer = async (interactionStep, pmName = "Project Manager", conversationHistory = [], model = "bedrock-claude-2") => {
+  // Extract conversation up to this interaction step (each step is a user+ai pair, greeting is step 1)
+  // We'll include all messages up to and including this step
+  const maxMsgIdx = interactionStep * 2 - 1; // 0-based index
+  const relevantHistory = conversationHistory.slice(0, maxMsgIdx + 1);
 
+  // Build conversation text for the prompt
+  const conversationText = relevantHistory.map(m => `${m.role === "ai" ? "Internal Client" : "PM"}: ${m.content}`).join("\n\n");
+
+  // Build the prompt for the model
+  let prompt = `You are a project manager named ${pmName}. Given the following conversation so far, generate the best possible response for the PM at interaction step ${interactionStep}.\n\n`;
+  prompt += conversationText ? conversationText + "\n\n" : "";
+  prompt += `Respond in first person, extremely concisely, with NO meta-commentary. Focus on being professional, helpful, and solution-oriented. Only provide the PM's next message. Your response should be under 60 words.`;
+
+  const systemPrompt = "You are a skilled project manager. Respond in first person, extremely concisely, with NO meta-commentary. Focus on being professional, helpful, and solution-oriented.";
+
+  let modelAnswer;
   try {
-    if (!modelAnswerPrompts[interactionStep]) {
-      return `I'll help with your request and follow up with the development team.`;
-    }
-    
-    const systemPrompt = "You are a skilled project manager. Respond in first person, extremely concisely, with NO meta-commentary. Focus on being professional, helpful, and solution-oriented.";
-    let modelAnswer = await queryOllama(modelAnswerPrompts[interactionStep], systemPrompt);
-    
+    modelAnswer = await queryBedrock({ prompt, model: model || "bedrock-claude-2" });
     // Clean up the response
     modelAnswer = modelAnswer
-      .replace(/^\s*["']|["']\s*$/g, '') // Remove quotes at beginning/end
+      .replace(/^\s*["']|["']\s*$/g, '')
       .replace(/Here['']s my response:?/gi, "")
       .replace(/As [A-Za-z]+ I would say:?/gi, "")
       .replace(/As a project manager,?/gi, "")
       .replace(/My response would be:?/gi, "")
       .replace(/I would respond:?/gi, "")
       .trim();
-    
     // Enforce word limits based on interaction step
     const words = modelAnswer.split(/\s+/);
-    let wordLimit = 60; // Default word limit
-    
-    if (interactionStep === 1) {
-      wordLimit = 15; // First interaction is more concise
-    } else if (interactionStep === 6) {
-      wordLimit = 40; // Closing is moderately concise
-    }
-    
+    let wordLimit = 60;
+    if (interactionStep === 1) wordLimit = 15;
+    else if (interactionStep === 6) wordLimit = 40;
     if (words.length > wordLimit) {
       modelAnswer = words.slice(0, wordLimit).join(' ');
     }
-    
-    // Ensure proper sentence endings
     if (!modelAnswer.match(/[.!?]$/)) {
       modelAnswer += '.';
     }
-    
     return modelAnswer;
   } catch (error) {
     console.error(`Error generating model answer for step ${interactionStep}:`, error);
@@ -411,8 +370,10 @@ const generateModelAnswer = async (interactionStep, pmName = "Project Manager") 
 };
 
 export const evaluateConversation = async (req, res) => {
+  // Start total API timer
+  const apiStart = Date.now();
   try {
-    const { conversationHistory } = req.body;
+    const { conversationHistory, model = "bedrock-claude-2" } = req.body;
     
     if (!conversationHistory || !Array.isArray(conversationHistory)) {
       return res.status(400).json({ error: "Valid conversation history is required" });
@@ -441,6 +402,8 @@ export const evaluateConversation = async (req, res) => {
     // Enhanced prompt with stronger formatting instructions
     const enhancedPromptSuffix = `\n\nIMPORTANT: Your response MUST be valid JSON. Format it exactly according to the structure specified, with no additional text or markdown formatting. Every field shown in the example must be included.`;
 
+    // Start timing before Bedrock request
+    const bedrockStart = Date.now();
     while (retryCount < maxRetries) {
       try {
         // Check if there's an active custom evaluation prompt
@@ -463,11 +426,12 @@ export const evaluateConversation = async (req, res) => {
         // Use a system message to increase reliability of structured outputs
         const systemPrompt = "You are a structured data extractor that ONLY responds with valid, properly formatted JSON according to the given schema.";
         
-        // Get evaluation from Ollama with enhanced reliability
-        const evaluationResponse = await queryOllama(prompt, systemPrompt);
+        // Get evaluation from Bedrock with enhanced reliability
+        let aiEvalResponse;
+        aiEvalResponse = await queryBedrock({ prompt, model: model || "bedrock-claude-2" });
         
         // Parse and validate the response
-        evaluation = parseEvaluationResponse(evaluationResponse);
+        evaluation = parseEvaluationResponse(aiEvalResponse);
         
         // Save any partial result we might get
         if (evaluation) {
@@ -498,6 +462,14 @@ export const evaluateConversation = async (req, res) => {
         await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
       }
     }
+    // End timing after Bedrock response
+    const bedrockEnd = Date.now();
+    const bedrockDuration = ((bedrockEnd - bedrockStart) / 1000).toFixed(2);
+    // End total API timer
+    const apiEnd = Date.now();
+    const apiDuration = ((apiEnd - apiStart) / 1000).toFixed(2);
+    console.log(`[Bedrock] /api/chat/evaluate LLM request took ${bedrockDuration} seconds.`);
+    console.log(`[API] /api/chat/evaluate total API time: ${apiDuration} seconds.`);
 
     // Normalize and adjust scores to make them more realistic and logical
     // First, collect all scores
@@ -535,10 +507,10 @@ export const evaluateConversation = async (req, res) => {
     const overallAssessment = await generateOverallAssessment(conversationHistory, scoreValues);
     evaluation.overallAssessment = overallAssessment;
 
-    // Generate high-quality model answers using Ollama for each interaction step
+    // Generate high-quality model answers using Bedrock by default
     const modelAnswers = [];
     for (let i = 1; i <= MAX_INTERACTIONS; i++) {
-      const modelResponse = await generateModelAnswer(i, pmName);
+      const modelResponse = await generateModelAnswer(i, pmName, conversationHistory, model);
       modelAnswers.push({
         interactionStep: i,
         example: modelResponse
@@ -566,7 +538,7 @@ export const evaluateConversation = async (req, res) => {
 // Returns only scores, feedback, and interaction metrics (no model answers)
 export const evaluateScores = async (req, res) => {
   try {
-    const { conversationHistory } = req.body;
+    const { conversationHistory, model = "bedrock-claude-2" } = req.body;
     if (!conversationHistory || !Array.isArray(conversationHistory)) {
       return res.status(400).json({ error: "Valid conversation history is required" });
     }
@@ -591,8 +563,9 @@ export const evaluateScores = async (req, res) => {
           prompt = evaluationPrompt(conversationHistory) + enhancedPromptSuffix;
         }
         const systemPrompt = "You are a structured data extractor that ONLY responds with valid, properly formatted JSON according to the given schema.";
-        const evaluationResponse = await queryOllama(prompt, systemPrompt);
-        evaluation = parseEvaluationResponse(evaluationResponse);
+        let aiEvalResponse;
+        aiEvalResponse = await queryBedrock({ prompt, model: model || "bedrock-claude-2" });
+        evaluation = parseEvaluationResponse(aiEvalResponse);
         if (evaluation) {
           partialEvaluation = evaluation;
         }
@@ -647,7 +620,7 @@ export const evaluateScores = async (req, res) => {
 // Returns only model answers for the conversation
 export const getModelAnswers = async (req, res) => {
   try {
-    const { conversationHistory } = req.body;
+    const { conversationHistory, model = "bedrock-claude-2" } = req.body;
     if (!conversationHistory || !Array.isArray(conversationHistory)) {
       return res.status(400).json({ error: "Valid conversation history is required" });
     }
@@ -666,7 +639,7 @@ export const getModelAnswers = async (req, res) => {
     }
     const modelAnswers = [];
     for (let i = 1; i <= MAX_INTERACTIONS; i++) {
-      const modelResponse = await generateModelAnswer(i, pmName);
+      const modelResponse = await generateModelAnswer(i, pmName, conversationHistory, model);
       modelAnswers.push({
         interactionStep: i,
         example: modelResponse
@@ -711,9 +684,9 @@ ${conversationHistoryText}
 Your assessment should be practical, specific, and highlight both what worked well and concrete ways the PM can improve.
 Keep your response to 150-200 words maximum.
 `;
-
     const systemPrompt = "You are a project management skills coach providing concise, actionable feedback.";
-    const assessment = await queryOllama(assessmentPrompt, systemPrompt);
+    // Use Bedrock for LLM request
+    const assessment = await queryBedrock({ prompt: assessmentPrompt, model: "bedrock-claude-2" });
     
     return assessment.trim();
   } catch (error) {
